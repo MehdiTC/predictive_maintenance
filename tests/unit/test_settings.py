@@ -7,6 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from turbine_guard.config.settings import Environment, Settings, get_settings
+from turbine_guard.data.acquisition import DEFAULT_SOURCE_URL
 
 ENV_PREFIX = "TURBINE_GUARD_"
 
@@ -25,6 +26,18 @@ def test_defaults() -> None:
     assert settings.app_name == "turbine-guard"
     assert settings.environment is Environment.DEVELOPMENT
     assert settings.log_level == "INFO"
+    assert settings.data_dir == Path("data")
+    assert settings.cmapss_source_url == DEFAULT_SOURCE_URL
+
+
+def test_data_settings_read_environment_variables(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TURBINE_GUARD_DATA_DIR", "/somewhere/else")
+    monkeypatch.setenv("TURBINE_GUARD_CMAPSS_SOURCE_URL", "file:///tmp/archive.zip")
+
+    settings = Settings()
+
+    assert settings.data_dir == Path("/somewhere/else")
+    assert settings.cmapss_source_url == "file:///tmp/archive.zip"
 
 
 def test_reads_prefixed_environment_variables(monkeypatch: pytest.MonkeyPatch) -> None:

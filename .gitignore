@@ -21,6 +21,10 @@ htmlcov/
 .env.*
 !.env.example
 
+# Data layers at the repository root (datasets and acquisition artifacts are
+# reproducible via scripts/download_data.py; never commit them)
+/data/
+
 # Notebooks
 .ipynb_checkpoints/
 

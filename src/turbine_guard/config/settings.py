@@ -2,10 +2,13 @@
 
 from enum import StrEnum
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from turbine_guard.data.acquisition import DEFAULT_SOURCE_URL
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
@@ -37,6 +40,12 @@ class Settings(BaseSettings):
     app_name: str = "turbine-guard"
     environment: Environment = Environment.DEVELOPMENT
     log_level: LogLevel = "INFO"
+
+    data_dir: Path = Path("data")
+    """Base directory for the data layers (raw, manifests, ...)."""
+
+    cmapss_source_url: str = DEFAULT_SOURCE_URL
+    """Archive URL for the NASA C-MAPSS dataset; https:// or file://."""
 
     @field_validator("environment", mode="before")
     @classmethod

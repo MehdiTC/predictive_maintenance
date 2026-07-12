@@ -2,7 +2,7 @@
 
 UV ?= uv
 
-.PHONY: help install hooks format format-check lint lint-fix typecheck test check run
+.PHONY: help install hooks format format-check lint lint-fix typecheck test check run acquire
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -35,3 +35,6 @@ check: format-check lint typecheck test ## Run all quality gates
 
 run: ## Run the API locally with auto-reload
 	$(UV) run uvicorn --factory turbine_guard.api.app:create_app --reload
+
+acquire: ## Download the NASA C-MAPSS FD001 subset into data/raw
+	$(UV) run python scripts/download_data.py

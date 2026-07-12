@@ -14,9 +14,15 @@
 
 # Active Loop
 
+None. Loops 0 and 1 are complete and awaiting review; Loop 2 must not begin without explicit approval.
+
+---
+
+# Completed Loops
+
 ## Loop 0 — Repository Foundation
 
-**Status:** Complete (2026-07-12) — awaiting review before Loop 1
+**Status:** Complete (2026-07-12) — reviewed and committed as `d95b528`
 **Priority:** Active
 **Objective:** Establish a clean, typed, tested Python and FastAPI foundation without implementing data or ML functionality.
 
@@ -136,29 +142,29 @@ Do not implement:
 
 ---
 
-# Planned Loops
-
 ## Loop 1 — Dataset Acquisition and Manifesting
 
-**Status:** Blocked until Loop 0 approval
+**Status:** Complete (2026-07-12) — awaiting review before Loop 2
 
-* [ ] Implement NASA C-MAPSS acquisition.
-* [ ] Start with FD001.
-* [ ] Store raw source files immutably.
-* [ ] Calculate file checksums.
-* [ ] Generate acquisition manifests.
-* [ ] Record source and retrieval metadata.
-* [ ] Make acquisition idempotent.
-* [ ] Create small test fixtures.
-* [ ] Add acquisition flow.
-* [ ] Document dataset provenance.
-* [ ] Validate Loop 1 acceptance criteria.
+* [x] Implement NASA C-MAPSS acquisition. (`src/turbine_guard/data/acquisition.py`, CLI in `data/cli.py`, thin `scripts/download_data.py`; stdlib only, zero new dependencies.)
+* [x] Start with FD001. (Subset fixed to FD001; member names derived from the subset string.)
+* [x] Store raw source files immutably. (Atomic temp+rename writes; files marked read-only 0444 under `data/raw/cmapss/FD001/`; mismatches error instead of silently repairing; `--force` for deliberate replacement.)
+* [x] Calculate file checksums. (SHA-256 for the archive and every extracted file; verified on each re-run.)
+* [x] Generate acquisition manifests. (`data/manifests/cmapss_fd001.json`, written atomically; pydantic-typed model in `data/manifest.py`.)
+* [x] Record source and retrieval metadata. (Dataset name, subset, source name + URL, UTC retrieval timestamp, acquisition version, tool version, git commit, per-file sizes and record/asset counts.)
+* [x] Make acquisition idempotent. (Re-run verifies checksums → `already_acquired`; cached archive reused; demonstrated live and covered by tests.)
+* [x] Create small test fixtures. (In-memory fixture zips — flat and nested — served over `file://`; tests are fully offline.)
+* [x] Add acquisition flow. (Plain callable `acquire(config)`; the Prefect `acquire_dataset_flow` wrapper is deferred to the orchestration loop per the loop plan.)
+* [x] Document dataset provenance. (README "Dataset acquisition" section + manifest `notes`: simulated turbofan data, anonymous sensor channels, no physical interpretations assigned.)
+* [x] Validate Loop 1 acceptance criteria. (All validation commands pass; real acquisition + idempotent re-run demonstrated; see `STATUS.md`.)
 
 ---
 
+# Planned Loops
+
 ## Loop 2 — Validation and EDA
 
-**Status:** Not started
+**Status:** Blocked until Loop 1 approval
 
 * [ ] Define the raw data contract.
 * [ ] Parse C-MAPSS files.
@@ -400,7 +406,8 @@ The following are optional and must not be implemented until the complete core p
 
 # Unresolved Issues
 
-Recorded at Loop 0 completion (2026-07-12). None block Loop 0 acceptance.
+Updated at Loop 1 completion (2026-07-12). None block Loop 1 acceptance.
 
-1. **No initial git commit exists yet.** The project directory was not its own git repository (it sat nested inside an unrelated, commitless repo rooted at the home directory), so `git init -b main` was run during Loop 0. All Loop 0 files, including `uv.lock`, are staged but intentionally uncommitted pending review.
+1. ~~No initial git commit exists yet.~~ **Resolved:** Loop 0 was committed as `d95b528`. Loop 1 changes are staged but intentionally uncommitted pending review (same policy).
 2. **Upstream deprecation warning in the test suite.** Importing `fastapi.testclient` with starlette 1.3.1 emits `StarletteDeprecationWarning: Using httpx with starlette.testclient is deprecated; install httpx2 instead.` The warning originates in FastAPI's own compatibility import, not project code; FastAPI's TestClient currently requires `httpx`. Revisit when FastAPI completes its migration.
+3. **NASA hosting stability.** The legacy `ti.arc.nasa.gov` C-MAPSS URL is dead and `data.nasa.gov` returns 404; acquisition defaults to NASA's S3 mirror (`phm-datasets.s3.amazonaws.com`). If that moves too, set `TURBINE_GUARD_CMAPSS_SOURCE_URL` (or `--url`, including `file://` for a manually downloaded archive). No code change should be needed.
