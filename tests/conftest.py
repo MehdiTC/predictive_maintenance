@@ -11,6 +11,37 @@ from fastapi.testclient import TestClient
 
 from turbine_guard.api.app import create_app
 from turbine_guard.config.settings import Environment, Settings
+from turbine_guard.data.acquisition import AcquisitionConfig, acquire
+from turbine_guard.data.schema import SENSOR_COLUMNS
+
+
+def make_trajectory_line(asset_id: int, cycle: int) -> str:
+    """One deterministic 26-field raw line, with real-file trailing spaces.
+
+    ``sensor_01`` and ``sensor_05`` are constant, ``sensor_06`` is
+    near-constant, everything else varies with asset and cycle, mirroring the
+    real dataset's mix of informative and uninformative channels.
+    """
+    settings = [f"{0.001 * (asset_id + cycle):.4f}", f"{-0.0002 * cycle:.4f}", "100.0"]
+    sensors: list[str] = []
+    for index in range(1, len(SENSOR_COLUMNS) + 1):
+        if index in (1, 5):
+            sensors.append("518.67")
+        elif index == 6:
+            sensors.append("21.61" if cycle % 2 else "21.6101")
+        else:
+            sensors.append(f"{100 + index + 0.5 * cycle + 0.1 * asset_id:.2f}")
+    return " ".join([str(asset_id), str(cycle), *settings, *sensors]) + "  "
+
+
+def make_trajectory_text(trajectory_lengths: dict[int, int]) -> str:
+    """Raw trajectory file content: each asset runs cycles 1..n contiguously."""
+    lines = [
+        make_trajectory_line(asset_id, cycle)
+        for asset_id, length in trajectory_lengths.items()
+        for cycle in range(1, length + 1)
+    ]
+    return "\n".join(lines) + "\n"
 
 
 @pytest.fixture
@@ -57,6 +88,16 @@ def cmapss_member_contents() -> dict[str, str]:
 
 
 @pytest.fixture
+def full_cmapss_contents() -> dict[str, str]:
+    """Schema-complete FD001 stand-ins: 26-column trajectories, 1-column RUL."""
+    return {
+        "train_FD001.txt": make_trajectory_text({1: 4, 2: 3}),
+        "test_FD001.txt": make_trajectory_text({1: 3, 2: 2}),
+        "RUL_FD001.txt": "112 \n98 \n",
+    }
+
+
+@pytest.fixture
 def cmapss_archive_factory(
     tmp_path: Path, cmapss_member_contents: dict[str, str]
 ) -> Callable[..., Path]:
@@ -67,10 +108,11 @@ def cmapss_archive_factory(
         nested: bool = False,
         omit: tuple[str, ...] = (),
         name: str = "CMAPSSData.zip",
+        contents: dict[str, str] | None = None,
     ) -> Path:
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w") as archive:
-            for filename, content in cmapss_member_contents.items():
+            for filename, content in (contents or cmapss_member_contents).items():
                 if filename not in omit:
                     archive.writestr(filename, content)
         archive_path = tmp_path / ("outer.zip" if nested else name)
@@ -85,3 +127,16 @@ def cmapss_archive_factory(
         return archive_path
 
     return build
+
+
+@pytest.fixture
+def acquired_data_dir(
+    tmp_path: Path,
+    cmapss_archive_factory: Callable[..., Path],
+    full_cmapss_contents: dict[str, str],
+) -> Path:
+    """A data directory with the schema-complete FD001 fixture acquired."""
+    archive = cmapss_archive_factory(contents=full_cmapss_contents)
+    data_dir = tmp_path / "data"
+    acquire(AcquisitionConfig(data_dir=data_dir, source_url=archive.as_uri()))
+    return data_dir

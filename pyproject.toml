@@ -6,6 +6,8 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.115",
+    "pandas>=2.2",
+    "pyarrow>=17",
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
     "uvicorn[standard]>=0.32",
@@ -14,7 +16,11 @@ dependencies = [
 [dependency-groups]
 dev = [
     "httpx>=0.27",
+    "ipykernel>=6.29",
+    "matplotlib>=3.9",
     "mypy>=1.13",
+    "nbconvert>=7.16",
+    "pandas-stubs>=2.2",
     "pre-commit>=4.0",
     "pytest>=8.3",
     "ruff>=0.8",
@@ -54,6 +60,11 @@ select = [
     "W",   # pycodestyle warnings
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# Notebooks legitimately print, import inline per section, and zip over
+# equal-length plot grids; application code keeps the strict rules.
+"*.ipynb" = ["T20", "E402", "B905"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
@@ -68,3 +79,7 @@ warn_required_dynamic_aliases = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers --strict-config"
+pythonpath = ["."]
+markers = [
+    "real_data: local integration tests that need the acquired FD001 dataset",
+]

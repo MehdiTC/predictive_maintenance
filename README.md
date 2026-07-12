@@ -8,7 +8,7 @@ A production-style predictive-maintenance ML platform for turbine and rotating-e
 
 The project is built in bounded implementation loops (see [PROJECT_SPEC.md](PROJECT_SPEC.md) for the full design, [STATUS.md](STATUS.md) for current state, and [TASKS.md](TASKS.md) for the loop plan).
 
-**Loops 0–1 are complete**: a typed, tested Python 3.12 package with environment-based settings, structured JSON logging, a minimal FastAPI service exposing liveness and readiness endpoints, and reproducible, checksummed acquisition of the NASA C-MAPSS FD001 dataset. Parsing/validation, feature engineering, modeling, and the online system arrive in later loops.
+**Loops 0–2 are complete**: a typed, tested Python 3.12 package with environment-based settings, structured JSON logging, a minimal FastAPI service exposing liveness and readiness endpoints, reproducible checksummed acquisition of the NASA C-MAPSS FD001 dataset, a validated Parquet processing pipeline with a machine-readable data-quality report, and an executable EDA notebook. Labels/splits/features, modeling, and the online system arrive in later loops.
 
 ## What the finished system will do
 
@@ -89,6 +89,47 @@ Offline or if NASA hosting moves: download the archive manually, then point acqu
 
 The `data/` directory is gitignored — datasets are never committed.
 
+## Data processing and validation
+
+```bash
+make process
+# equivalent to: uv run python scripts/process_data.py
+# options: --data-dir <dir>  --force
+```
+
+This verifies the raw layer against the acquisition manifest, parses the whitespace-delimited
+files into the canonical typed schema (`asset_id`, `cycle`, `operating_setting_1..3`,
+`sensor_01..21` — sensors are anonymous and are deliberately not given physical names), runs
+structural and semantic validation (schema/dtypes, unique and contiguous cycles per asset,
+finite values, canonical FD001 counts), and writes validated Parquet outputs plus a
+machine-readable report:
+
+```text
+data/processed/cmapss/FD001/
+├── train_FD001.parquet       # 20,631 rows, 100 engines
+├── test_FD001.parquet        # 13,096 rows, 100 engines
+├── rul_FD001.parquet         # 100 official test RUL values
+└── processing_report.json    # checks, stats, checksums, provenance
+```
+
+A failed required check blocks publication — no output is written. Constant/near-constant
+columns are reported as warnings and kept. Re-running is idempotent (nothing is rewritten when
+inputs and outputs are unchanged); tampered outputs fail loudly, and `--force` rebuilds. The full
+contract is documented in [docs/data_contract.md](docs/data_contract.md).
+
+## Exploratory data analysis
+
+```bash
+make eda
+# equivalent to: uv run jupyter nbconvert --to notebook --execute --inplace notebooks/01_eda.ipynb
+```
+
+[notebooks/01_eda.ipynb](notebooks/01_eda.ipynb) consumes the validated Parquet outputs (never
+the raw text), executes top to bottom, and covers trajectory lengths, data quality,
+constant/near-constant columns, operating settings, sensor lifecycle trends, distributions,
+correlation structure, train-vs-test differences, and the implications for Loop 3 feature
+engineering.
+
 ## Development commands
 
 | Command             | Purpose                                    |
@@ -103,6 +144,8 @@ The `data/` directory is gitignored — datasets are never committed.
 | `make check`        | Run all quality gates                      |
 | `make run`          | Run the API locally with auto-reload       |
 | `make acquire`      | Download the C-MAPSS FD001 dataset         |
+| `make process`      | Validate raw data, write Parquet + report  |
+| `make eda`          | Execute the EDA notebook top to bottom     |
 | `make hooks`        | Install pre-commit hooks                   |
 
 ## Configuration
@@ -125,15 +168,22 @@ Logs are emitted as single-line JSON objects; fields passed via `extra=` on logg
 ├── src/turbine_guard/
 │   ├── api/            # FastAPI app factory, routes, response schemas
 │   ├── config/         # typed environment-based settings
-│   ├── data/           # dataset acquisition and provenance manifests
+│   ├── data/           # acquisition, manifests, schema, parsing, validation, processing
 │   ├── services/       # business logic used by the API layer
 │   └── logging_config.py
 ├── scripts/
-│   └── download_data.py
+│   ├── download_data.py
+│   └── process_data.py
+├── notebooks/
+│   └── 01_eda.ipynb    # the single primary EDA notebook (make eda)
+├── docs/
+│   ├── data_contract.md
+│   └── adr/
 ├── tests/
 │   ├── conftest.py
-│   └── unit/
-├── data/               # gitignored: raw layer + manifests (make acquire)
+│   ├── unit/
+│   └── integration/    # local tests against the acquired FD001 data (auto-skipped)
+├── data/               # gitignored: raw, manifests, processed (make acquire/process)
 ├── pyproject.toml      # project metadata + ruff/mypy/pytest configuration
 ├── Makefile
 └── .env.example

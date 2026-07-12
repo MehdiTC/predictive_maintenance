@@ -14,7 +14,7 @@
 
 # Active Loop
 
-None. Loops 0 and 1 are complete and awaiting review; Loop 2 must not begin without explicit approval.
+None. Loops 0–2 are complete and awaiting review; Loop 3 must not begin without explicit approval.
 
 ---
 
@@ -160,25 +160,25 @@ Do not implement:
 
 ---
 
-# Planned Loops
-
 ## Loop 2 — Validation and EDA
 
-**Status:** Blocked until Loop 1 approval
+**Status:** Complete (2026-07-12) — awaiting review before Loop 3
 
-* [ ] Define the raw data contract.
-* [ ] Parse C-MAPSS files.
-* [ ] Assign explicit column names.
-* [ ] Validate types and schema.
-* [ ] Validate asset and cycle integrity.
-* [ ] Detect duplicates and invalid records.
-* [ ] Produce validated data.
-* [ ] Produce processed Parquet data.
-* [ ] Create the single primary EDA notebook.
-* [ ] Document EDA findings.
-* [ ] Validate Loop 2 acceptance criteria.
+* [x] Define the raw data contract. (`docs/data_contract.md`; canonical schema v1 in `data/schema.py`.)
+* [x] Parse C-MAPSS files. (`data/parsing.py`: line-level field-count enforcement, line-numbered `ParseError`s, no silent row drops, deterministic, raw bytes untouched.)
+* [x] Assign explicit column names. (`asset_id`, `cycle`, `operating_setting_1..3`, `sensor_01..21` — anonymous sensors, no invented physical meanings.)
+* [x] Validate types and schema. (int64 IDs/cycles, float64 settings/sensors; column set, order, and dtypes checked post-parse.)
+* [x] Validate asset and cycle integrity. (Positive IDs/cycles, unique `(asset_id, cycle)`, cycles contiguous 1..n per asset, order-independent.)
+* [x] Detect duplicates and invalid records. (Duplicates, missing, non-finite, malformed rows; constant/near-constant columns reported as warnings, kept.)
+* [x] Produce validated data. (Validation gates publication; failed required check → no output written. FD001 canonical-count profile separate from general validation.)
+* [x] Produce processed Parquet data. (`data/processed/cmapss/FD001/{train,test,rul}_FD001.parquet` + `processing_report.json`; atomic, checksummed, idempotent, tamper-detected, `--force` rebuild; `make process`.)
+* [x] Create the single primary EDA notebook. (`notebooks/01_eda.ipynb`, executes top to bottom on the Parquet outputs via `make eda`; no labels/features/splits/models.)
+* [x] Document EDA findings. (Notebook "Findings and implications for Loop 3" section + `STATUS.md`; key nuance: sensors 08/13 near-constant by relative std yet strongly trending.)
+* [x] Validate Loop 2 acceptance criteria. (All validation commands pass; 106 tests; real FD001 processing, idempotent re-run, Parquet load, and notebook execution demonstrated; raw checksums unchanged.)
 
 ---
+
+# Planned Loops
 
 ## Loop 3 — Labels, Splits, and Features
 
@@ -406,8 +406,10 @@ The following are optional and must not be implemented until the complete core p
 
 # Unresolved Issues
 
-Updated at Loop 1 completion (2026-07-12). None block Loop 1 acceptance.
+Updated at Loop 2 completion (2026-07-12). None block Loop 2 acceptance.
 
-1. ~~No initial git commit exists yet.~~ **Resolved:** Loop 0 was committed as `d95b528`. Loop 1 changes are staged but intentionally uncommitted pending review (same policy).
+1. ~~No initial git commit exists yet.~~ **Resolved:** Loop 0 committed as `d95b528`, Loop 1 as `94ae615`. Loop 2 changes are intentionally uncommitted pending review (same policy).
 2. **Upstream deprecation warning in the test suite.** Importing `fastapi.testclient` with starlette 1.3.1 emits `StarletteDeprecationWarning: Using httpx with starlette.testclient is deprecated; install httpx2 instead.` The warning originates in FastAPI's own compatibility import, not project code; FastAPI's TestClient currently requires `httpx`. Revisit when FastAPI completes its migration.
 3. **NASA hosting stability.** The legacy `ti.arc.nasa.gov` C-MAPSS URL is dead and `data.nasa.gov` returns 404; acquisition defaults to NASA's S3 mirror (`phm-datasets.s3.amazonaws.com`). If that moves too, set `TURBINE_GUARD_CMAPSS_SOURCE_URL` (or `--url`, including `file://` for a manually downloaded archive). No code change should be needed.
+4. **pandas 3.x.** `uv` resolved pandas 3.0.3 (not 2.x). Loop 2 code targets the pandas 3 API (e.g., `method="spearman"` now requires SciPy, avoided via rank-then-Pearson). Future loops must not assume pandas 2 behavior.
+5. **Positional RUL correspondence.** `RUL_FD001.txt` row *i* ↔ test unit *i + 1* is defined by the dataset readme and cannot be verified from file contents alone; the cross-check is limited to count equality. Loop 3 label generation must encode this assumption explicitly.

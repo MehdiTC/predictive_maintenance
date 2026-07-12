@@ -13,8 +13,8 @@ from turbine_guard.data.acquisition import (
     AcquisitionConfig,
     AcquisitionError,
     AcquisitionStatus,
-    _current_git_commit,
     acquire,
+    current_git_commit,
 )
 from turbine_guard.data.manifest import load_manifest
 
@@ -208,7 +208,7 @@ def test_git_commit_is_none_outside_a_repository(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    assert _current_git_commit() is None
+    assert current_git_commit() is None
 
 
 def test_git_commit_resolves_inside_a_repository(
@@ -234,7 +234,7 @@ def test_git_commit_resolves_inside_a_repository(
         check=True,
     )
 
-    commit = _current_git_commit()
+    commit = current_git_commit()
 
     assert commit is not None
     assert len(commit) == 40

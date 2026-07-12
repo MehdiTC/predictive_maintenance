@@ -140,7 +140,7 @@ def acquire(config: AcquisitionConfig) -> AcquisitionResult:
         },
     )
     if not config.force:
-        existing = _verify_existing(config)
+        existing = verify_raw_layer(config)
         if existing is not None:
             logger.info(
                 "acquisition_already_complete",
@@ -163,7 +163,7 @@ def acquire(config: AcquisitionConfig) -> AcquisitionResult:
         source_url=config.source_url,
         retrieved_at=datetime.now(UTC),
         acquired_by=f"turbine-guard {__version__}",
-        git_commit=_current_git_commit(),
+        git_commit=current_git_commit(),
         archive=_archive_record(archive_path),
         files=file_records,
         notes=PROVENANCE_NOTES,
@@ -183,13 +183,14 @@ def acquire(config: AcquisitionConfig) -> AcquisitionResult:
     )
 
 
-def _verify_existing(config: AcquisitionConfig) -> AcquisitionManifest | None:
+def verify_raw_layer(config: AcquisitionConfig) -> AcquisitionManifest | None:
     """Return the manifest when the raw layer is complete and unmodified.
 
     Returns ``None`` when no manifest exists (fresh acquisition). Raises
     :class:`AcquisitionError` when the manifest or raw files are unreadable,
     missing, or fail checksum verification — the raw layer is immutable, so
-    silent repair would hide corruption.
+    silent repair would hide corruption. Downstream processing uses this to
+    confirm the acquisition state before reading raw files.
     """
     manifest_path = config.manifest_path
     if not manifest_path.exists():
@@ -368,7 +369,7 @@ def _archive_filename(source_url: str) -> str:
     return name or "cmapss_source_archive.zip"
 
 
-def _current_git_commit() -> str | None:
+def current_git_commit() -> str | None:
     """Current git commit SHA, or ``None`` outside a repo or without commits."""
     try:
         result = subprocess.run(
