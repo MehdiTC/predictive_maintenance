@@ -3,9 +3,9 @@
 ## Project Status
 
 **Project:** TurbineGuard
-**Current phase:** Loop 4 complete and validated
-**Active loop:** None — awaiting review before Loop 5
-**Overall status:** Offline model training/evaluation, validation-only selection, conformal uncertainty, simulated policy comparison, and reproducible local artifacts validated; no Loop 5 functionality
+**Current phase:** Loop 5 complete and validated
+**Active loop:** None — awaiting review before Loop 6
+**Overall status:** Optional nested MLflow tracking, complete lineage, pyfunc packaging, SQLite-backed registry, aliases, model cards, prediction equivalence, and idempotency validated; no Loop 6 functionality
 **Last updated:** 2026-07-12
 
 ---
@@ -41,7 +41,7 @@ See `PROJECT_SPEC.md` for the complete design.
 
 ## Current Repository State
 
-Loops 0–3 are validated and Loop 4 is implemented:
+Loops 0–5 are complete and validated:
 
 ```text
 ├── src/turbine_guard/
@@ -65,12 +65,14 @@ Loops 0–3 are validated and Loop 4 is implemented:
 │   │   ├── pipeline.py         # verify inputs → labels → split → features → outputs
 │   │   └── build_cli.py        # feature-build CLI
 │   ├── modeling/               # Loop 4 models, metrics, alerts, conformal, simulation, artifacts
+│   ├── tracking/               # Loop 5 MLflow adapter, pyfunc, registry, aliases, CLI
 │   ├── services/health.py
 │   └── logging_config.py       # structured JSON logging
 ├── scripts/download_data.py     # thin wrappers over turbine_guard CLIs
 ├── scripts/process_data.py
 ├── scripts/build_features.py
 ├── scripts/train_models.py
+├── scripts/mlflow_models.py
 ├── notebooks/01_eda.ipynb       # the single primary EDA notebook, executed
 ├── docs/data_contract.md        # raw structure, canonical schema, validation rules, outputs
 ├── docs/features.md             # Loop 3 contract: labels, splits, features, manifests
@@ -103,15 +105,15 @@ data/
     └── feature_manifest.json    # feature definition, columns, checksums, provenance
 ```
 
-Loop 4 model artifacts are generated locally under `data/models/cmapss/FD001/` by `make train` and
-remain gitignored. No database, MLflow, registry, Prefect, replay service, monitoring, Docker, or
-deployment functionality exists yet — deliberately.
+Loop 4 model artifacts remain under `data/models/cmapss/FD001/`. Optional Loop 5 runtime state uses
+`data/mlflow/` by default and remains gitignored. No PostgreSQL operational layer, Prefect, replay
+service, monitoring, Docker, serving endpoint, or deployment functionality exists — deliberately.
 
 ---
 
 ## Current Loop
 
-Loop 4 is complete and validated. Loop 5 must not begin without explicit approval.
+Loop 5 is complete and validated. Do not begin Loop 6 without explicit approval.
 
 ---
 
@@ -124,6 +126,43 @@ Loop 4 is complete and validated. Loop 5 must not begin without explicit approva
 * [x] Implemented Loop 3 — labels, asset-level splits, and leakage-safe features (2026-07-12).
 * [x] Implemented Loop 4 — offline modeling, evaluation, uncertainty, and simulated maintenance
   policy (2026-07-12).
+* [x] Implemented and validated Loop 5 — MLflow tracking and model registry (2026-07-12).
+
+---
+
+## Loop 5 Implementation Notes
+
+1. MLflow is an optional post-completion adapter. Ordinary Loop 4 training remains tracking-free;
+   `--track-with-mlflow` consumes only a complete checksum-verified local execution.
+2. The default local backend is SQLite (`data/mlflow/mlflow.db`) with filesystem artifacts under
+   `data/mlflow/artifacts`; tracking URI, experiment, model name, artifact location, aliases,
+   registration, promotion, run prefix, project tag, and environment are typed settings.
+3. One parent run represents the complete execution and one nested child represents every candidate.
+   Tags/parameters/metrics/artifacts cover raw-validation-split-feature-config-code lineage, all
+   validation metrics, ranks/eligibility, and champion calibration/replay/official/policy evidence.
+4. The registered flavor is a small custom pyfunc over the existing checksummed `ModelBundle`; it
+   returns point/lower/upper RUL and risk class without duplicating preprocessing or interval logic.
+5. The explicit signature contains the ordered 552 feature columns only. Missing columns fail;
+   MLflow reorders named inputs and ignores extras as the documented explicit policy.
+6. Registry versions are deduplicated by champion-bundle SHA. `candidate` and `challenger` follow a
+   verified version; `champion` requires Loop 4 eligibility plus enabled promotion; a displaced
+   champion receives `archived` and all historical versions remain.
+7. Exact training-manifest SHA plus registry-behavior SHA identifies an already-logged execution.
+   Explicit flags create new run history and, separately, a new version. Tampered local artifacts
+   fail before MLflow mutation.
+8. `scripts/mlflow_models.py` inspects parent/child runs, metrics, versions, and aliases, and verifies
+   load-by-alias/version prediction equivalence. A registry-aware model card is logged as an artifact.
+9. Direct dependency added: `mlflow>=3.5,<4`; no other direct dependency and no Loop 6 technology.
+10. Full user validation passed: 232 tests, Ruff format/lint, strict Mypy, and all pre-commit hooks.
+    Persistent FD001 tracking logged all 14 candidates under parent run
+    `ba656718a5654a0c9c536411906562b2`; source child
+    `f9288609d202432a99d45e3025ac80c5` registered version 1 with `candidate`, `challenger`, and
+    `champion`. Alias/version loads matched the local bundle exactly (maximum difference 0.0).
+11. The identical rerun returned `already_trained` and `already_logged`, retained the same parent,
+    14 child runs, version 1, and aliases. Before/after Loop 3 and Loop 4 checksum diff was empty.
+12. The MLflow UI launched successfully on the configured SQLite backend and returned HTTP 200.
+    The observed CloudPickle/pip-resolution/Starlette/joblib messages are upstream warnings; model
+    load, UI, and all tests passed.
 
 ---
 
@@ -230,8 +269,8 @@ Loop 4 is complete and validated. Loop 5 must not begin without explicit approva
 
 ### Implemented so far
 
-Loops 0–4 only. MLflow, registry, persistence, orchestration, serving,
-online replay, monitoring, and deployment remain design-only.
+Loops 0–5. PostgreSQL persistence, orchestration, serving, online replay, monitoring, and
+deployment remain design-only.
 
 ---
 
@@ -259,9 +298,8 @@ online replay, monitoring, and deployment remain design-only.
 
 ## Immediate Next Action
 
-Review Loop 4. Do not begin Loop 5 without explicit approval.
-
-Loop 4 changes are left uncommitted pending review (the repository remains at the Loop 3 tag).
+Run the requested full quality gates and real FD001 tracked-training/registry inspection commands,
+then interpret and fix only relevant failures. Do not begin Loop 6.
 
 ---
 
@@ -299,6 +337,25 @@ Loop 4 changes are left uncommitted pending review (the repository remains at th
 ---
 
 ## Validation Status
+
+All Loop 5 commands run on 2026-07-12 (macOS, Python 3.12.13 via uv):
+
+| Check | Status | Detail |
+| --- | --- | --- |
+| `uv sync` | Pass | 165 packages resolved; 160 checked |
+| Ruff format check | Pass | 86 files already formatted |
+| Ruff lint check | Pass | All checks passed |
+| Mypy (strict) | Pass | No issues in 48 source files |
+| Pytest | Pass | 232 passed, including real FD001 MLflow integration |
+| Pre-commit (all files) | Pass | Ruff format, Ruff lint, and Mypy hooks passed |
+| Persistent tracked FD001 run | Pass | 1 parent; 14 candidate children; selected capped-125 Ridge |
+| Registry | Pass | `TurbineGuard-FD001-RUL` version 1, status `READY` |
+| Aliases | Pass | `candidate`, `challenger`, and `champion` all point to version 1 |
+| Alias/version load | Pass | 552 features; rich four-column output; max difference 0.0 |
+| Tracking idempotency | Pass | `already_logged`; same parent, 14 children, and version 1 |
+| Loop 3/4 integrity | Pass | Before/after SHA-256 diff empty |
+| MLflow UI | Pass | SQLite-backed UI launched; root and experiment search returned HTTP 200 |
+| Loop 6 boundary | Pass | No database package, Alembic tree, PostgreSQL imports, compose, or Dockerfile |
 
 All Loop 4 commands run on 2026-07-12 (macOS, Python 3.12.13 via uv):
 
@@ -338,18 +395,19 @@ Prior Loop 3 validation (retained for history):
 
 Known non-blocking upstream warnings: FastAPI's compatibility import emits the existing
 `StarletteDeprecationWarning`; joblib 1.5.3 emits a NumPy 2.5 shape-assignment deprecation while
-reloading compressed artifacts. Tests and prediction-equality checks pass.
+reloading compressed artifacts. MLflow additionally warns about trusted CloudPickle loading, an
+unresolved installed pip version in its generated environment, and its UI's deprecated Starlette
+WSGI bridge. Tests, registered-model loading, prediction equality, and the UI all pass.
 
 ---
 
 ## Last Completed Loop
 
-**Loop 4 — Model Training, Evaluation, Uncertainty, and Maintenance-Policy Simulation**
-(2026-07-12).
+**Loop 5 — MLflow Experiment Tracking and Model Registry** (2026-07-12).
 
 ---
 
 ## Next Planned Loop
 
-After Loop 4 is reviewed and explicitly approved: **Loop 5 — MLflow Integration**. Do not begin it
-automatically.
+After Loop 5 is fully validated and separately approved: **Loop 6 — PostgreSQL Operational Layer**.
+Do not begin it automatically.

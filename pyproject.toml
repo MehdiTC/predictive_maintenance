@@ -7,6 +7,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.115",
     "joblib>=1.4",
+    "mlflow>=3.5,<4",
     "pandas>=2.2",
     "pyarrow>=17",
     "pydantic>=2.9",

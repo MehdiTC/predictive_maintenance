@@ -23,6 +23,7 @@ from turbine_guard.modeling.pipeline import (
     TrainingStatus,
     train_models,
 )
+from turbine_guard.tracking.mlflow_tracker import TrackingResult, TrackingStatus
 
 
 def tiny_candidates() -> tuple[CandidateConfig, ...]:
@@ -159,3 +160,43 @@ def test_cli_logs_concise_result(
     output = capsys.readouterr().out
     assert '"message": "model_training_result"' in output
     assert '"status": "trained"' in output
+
+
+def test_cli_optionally_tracks_without_changing_core_training(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    trained = TrainingResult(
+        status=TrainingStatus.ALREADY_TRAINED,
+        selected_candidate_id="capped_125--ridge",
+        artifacts_dir=Path("data/models"),
+        champion_path=Path("data/models/champion.joblib"),
+        champion_selection_path=Path("data/models/champion_selection.json"),
+        summary={"selected_candidate_id": "capped_125--ridge"},
+    )
+    tracked = TrackingResult(
+        status=TrackingStatus.ALREADY_LOGGED,
+        execution_id="a" * 64,
+        experiment_id="1",
+        parent_run_id="parent",
+        candidate_run_ids={"capped_125--ridge": "child"},
+        selected_candidate_id="capped_125--ridge",
+        selected_run_id="child",
+        registered_model_name="model",
+        registered_version="1",
+        aliases={"champion": "1"},
+        max_prediction_difference=0.0,
+    )
+    monkeypatch.setattr("turbine_guard.modeling.cli.train_models", lambda _: trained)
+    monkeypatch.setattr(
+        "turbine_guard.tracking.mlflow_tracker.MlflowTracker.track", lambda _self, _: tracked
+    )
+
+    assert main(["--track-with-mlflow"]) == 0
+    output = capsys.readouterr().out
+    assert '"mlflow_tracking": "already_logged"' in output
+    assert '"registered_version": "1"' in output
+
+
+def test_cli_rejects_mlflow_force_without_tracking(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["--force-mlflow-run"]) == 1
+    assert "require --track-with-mlflow" in capsys.readouterr().out

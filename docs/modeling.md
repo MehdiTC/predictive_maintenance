@@ -1,8 +1,9 @@
 # Offline RUL Modeling and Evaluation (Loop 4)
 
 Loop 4 consumes the checksummed Loop 3 feature layer and produces reproducible local models and
-reports. It implements no experiment tracker, registry, API inference, online replay, database,
-monitoring, or deployment functionality.
+reports. Its core remains independent of experiment tracking and registration. Loop 5 can consume
+the completed artifacts through the optional adapter documented in `docs/mlflow.md`; API inference,
+online replay, database, monitoring, and deployment remain unimplemented.
 
 ## Dataset-role boundary
 

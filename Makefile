@@ -2,7 +2,7 @@
 
 UV ?= uv
 
-.PHONY: help install hooks format format-check lint lint-fix typecheck test check run acquire process features train eda
+.PHONY: help install hooks format format-check lint lint-fix typecheck test check run acquire process features train train-tracked mlflow-ui mlflow-inspect mlflow-verify eda
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -47,6 +47,18 @@ features: ## Build RUL labels, asset-level splits, and features (requires make p
 
 train: ## Train and evaluate Loop 4 RUL models (requires make features)
 	$(UV) run python scripts/train_models.py
+
+train-tracked: ## Train/verify Loop 4 and track/register with MLflow
+	$(UV) run python scripts/train_models.py --track-with-mlflow
+
+mlflow-ui: ## Launch the local SQLite-backed MLflow UI
+	$(UV) run mlflow ui --backend-store-uri sqlite:///data/mlflow/mlflow.db --port 5000
+
+mlflow-inspect: ## Show tracked executions, candidates, registry versions, and aliases
+	$(UV) run python scripts/mlflow_models.py inspect
+
+mlflow-verify: ## Verify champion-alias predictions against the local bundle
+	$(UV) run python scripts/mlflow_models.py verify --alias champion
 
 eda: ## Execute the EDA notebook top to bottom (requires make process)
 	$(UV) run jupyter nbconvert --to notebook --execute --inplace notebooks/01_eda.ipynb

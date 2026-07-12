@@ -14,7 +14,7 @@
 
 # Active Loop
 
-None. Loops 0–4 are complete. Loop 5 must not begin without explicit approval.
+None. Loops 0–5 are complete. Loop 6 must not begin without explicit approval.
 
 ---
 
@@ -250,20 +250,31 @@ Do not implement:
 
 ## Loop 5 — MLflow Integration
 
-**Status:** Not started
+**Status:** Complete and validated (2026-07-12)
 
-* [ ] Configure MLflow tracking.
-* [ ] Log training parameters and metrics.
-* [ ] Log dataset checksums.
-* [ ] Log feature versions.
-* [ ] Log split asset IDs.
-* [ ] Log Git commit SHA.
-* [ ] Log model artifacts and evaluation plots.
-* [ ] Register candidate models.
-* [ ] Implement model aliases.
-* [ ] Generate model cards.
-* [ ] Load a model by registry alias.
-* [ ] Validate Loop 5 acceptance criteria.
+* [x] Configure typed local/remote MLflow tracking and artifact settings.
+* [x] Add a SQLite-backed local registry default and gitignore runtime state.
+* [x] Keep core Loop 4 modeling usable with tracking disabled.
+* [x] Create one parent run and one nested child per candidate.
+* [x] Log candidate parameters, validation metrics, eligibility, and rank.
+* [x] Log raw acquisition, validation, split, feature, training-config, Git, and code lineage.
+* [x] Log candidate pipelines/configs and complete champion reports/contracts/checksums.
+* [x] Log champion calibration, replay, official-test, policy, and performance metrics.
+* [x] Package the existing champion bundle as a rich MLflow pyfunc.
+* [x] Add an explicit ordered-feature signature and valid input example.
+* [x] Test reload equality, ordering, missing columns, extra columns, and preprocessing preservation.
+* [x] Register the selected champion with source-run and evaluation metadata.
+* [x] Implement `candidate`, `challenger`, `champion`, and `archived` aliases.
+* [x] Preserve previous champion versions and test alias reassignment.
+* [x] Implement exact-execution and bundle-checksum idempotency plus explicit force modes.
+* [x] Reject tampered local artifacts before logging/registration.
+* [x] Generate and log a registry-aware champion model card.
+* [x] Add tracked-training, UI, inspection, state, and equivalence commands.
+* [x] Add temporary-SQLite unit/integration coverage with no external server or UI.
+* [x] Add ADR 0004 and MLflow documentation; update README/configuration.
+* [x] Run the complete validation suite and real tracked FD001 workflow from the user terminal.
+  (232 tests; all quality gates pass; 14 candidates; registry version 1; aliases verified.)
+* [x] Validate Loop 5 acceptance criteria and close the loop based on actual command output.
 
 ---
 

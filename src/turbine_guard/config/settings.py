@@ -47,6 +47,21 @@ class Settings(BaseSettings):
     cmapss_source_url: str = DEFAULT_SOURCE_URL
     """Archive URL for the NASA C-MAPSS dataset; https:// or file://."""
 
+    mlflow_tracking_uri: str = "sqlite:///data/mlflow/mlflow.db"
+    """MLflow tracking/registry backend; SQLite is the safe local default."""
+
+    mlflow_experiment_name: str = "TurbineGuard-FD001-Offline-Modeling"
+    mlflow_registered_model_name: str = "TurbineGuard-FD001-RUL"
+    mlflow_artifact_location: str | None = None
+    mlflow_registration_enabled: bool = True
+    mlflow_promote_champion: bool = True
+    mlflow_candidate_alias: str = "candidate"
+    mlflow_challenger_alias: str = "challenger"
+    mlflow_champion_alias: str = "champion"
+    mlflow_archived_alias: str = "archived"
+    mlflow_run_name_prefix: str = "fd001-offline"
+    mlflow_project_tag: str = "turbine-guard"
+
     @field_validator("environment", mode="before")
     @classmethod
     def _normalize_environment(cls, value: object) -> object:
@@ -62,6 +77,25 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return value.upper()
         return value
+
+    @field_validator(
+        "mlflow_tracking_uri",
+        "mlflow_experiment_name",
+        "mlflow_registered_model_name",
+        "mlflow_candidate_alias",
+        "mlflow_challenger_alias",
+        "mlflow_champion_alias",
+        "mlflow_archived_alias",
+        "mlflow_run_name_prefix",
+        "mlflow_project_tag",
+    )
+    @classmethod
+    def _non_empty_mlflow_value(cls, value: str) -> str:
+        """Reject ambiguous empty MLflow identifiers and URIs."""
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("MLflow configuration values must not be empty.")
+        return normalized
 
 
 @lru_cache

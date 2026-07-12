@@ -28,6 +28,11 @@ def test_defaults() -> None:
     assert settings.log_level == "INFO"
     assert settings.data_dir == Path("data")
     assert settings.cmapss_source_url == DEFAULT_SOURCE_URL
+    assert settings.mlflow_tracking_uri == "sqlite:///data/mlflow/mlflow.db"
+    assert settings.mlflow_experiment_name == "TurbineGuard-FD001-Offline-Modeling"
+    assert settings.mlflow_registered_model_name == "TurbineGuard-FD001-RUL"
+    assert settings.mlflow_candidate_alias == "candidate"
+    assert settings.mlflow_champion_alias == "champion"
 
 
 def test_data_settings_read_environment_variables(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -38,6 +43,28 @@ def test_data_settings_read_environment_variables(monkeypatch: pytest.MonkeyPatc
 
     assert settings.data_dir == Path("/somewhere/else")
     assert settings.cmapss_source_url == "file:///tmp/archive.zip"
+
+
+def test_mlflow_settings_read_environment_variables(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TURBINE_GUARD_MLFLOW_TRACKING_URI", "sqlite:///custom.db")
+    monkeypatch.setenv("TURBINE_GUARD_MLFLOW_EXPERIMENT_NAME", "custom-experiment")
+    monkeypatch.setenv("TURBINE_GUARD_MLFLOW_REGISTERED_MODEL_NAME", "custom-model")
+    monkeypatch.setenv("TURBINE_GUARD_MLFLOW_REGISTRATION_ENABLED", "false")
+    monkeypatch.setenv("TURBINE_GUARD_MLFLOW_PROMOTE_CHAMPION", "false")
+
+    settings = Settings()
+
+    assert settings.mlflow_tracking_uri == "sqlite:///custom.db"
+    assert settings.mlflow_experiment_name == "custom-experiment"
+    assert settings.mlflow_registered_model_name == "custom-model"
+    assert settings.mlflow_registration_enabled is False
+    assert settings.mlflow_promote_champion is False
+
+
+def test_empty_mlflow_setting_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TURBINE_GUARD_MLFLOW_EXPERIMENT_NAME", "  ")
+    with pytest.raises(ValidationError, match="must not be empty"):
+        Settings()
 
 
 def test_reads_prefixed_environment_variables(monkeypatch: pytest.MonkeyPatch) -> None:

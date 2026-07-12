@@ -8,7 +8,10 @@ A production-style predictive-maintenance ML platform for turbine and rotating-e
 
 The project is built in bounded implementation loops (see [PROJECT_SPEC.md](PROJECT_SPEC.md) for the full design, [STATUS.md](STATUS.md) for current state, and [TASKS.md](TASKS.md) for the loop plan).
 
-**Loops 0–4 are complete**: the repository now also contains a validated leakage-safe offline RUL training/evaluation system with constant, Ridge, histogram-gradient-boosting, and XGBoost candidates, validation-only champion selection, split conformal intervals, maintenance-alert evaluation, normalized-cost policy simulation, and checksummed local artifacts. MLflow and the online system remain later loops.
+**Loops 0–5 are complete**: the validated offline RUL pipeline now has optional MLflow parent/
+child experiment tracking, complete lineage, rich pyfunc packaging, a SQLite-backed local model
+registry, stable aliases, model cards, and prediction-equivalence verification. The operational
+database and online system remain later loops.
 
 ## What the finished system will do
 
@@ -193,6 +196,26 @@ files use pickle semantics and must only be loaded from trusted, checksum-verifi
 [docs/modeling.md](docs/modeling.md) for formulas, alert definitions, policy assumptions, artifact
 layout, and limitations.
 
+## MLflow tracking and model registry
+
+```bash
+make train-tracked
+# equivalent to: uv run python scripts/train_models.py --track-with-mlflow
+make mlflow-inspect
+make mlflow-verify
+make mlflow-ui             # UI at http://127.0.0.1:5000
+```
+
+The local default uses SQLite metadata at `data/mlflow/mlflow.db` and filesystem artifacts under
+`data/mlflow/artifacts`. One parent represents a complete Loop 4 execution; each candidate is a
+nested child. The selected child stores held-out metrics, reports, model card, and an MLflow pyfunc
+that returns point/interval RUL and risk level using the existing champion bundle. Registered model
+aliases are `candidate`, `challenger`, `champion`, and (after replacement) `archived`.
+
+Tracking is opt-in, so ordinary `make train` and all local checksummed artifacts remain usable
+without an MLflow store. See [docs/mlflow.md](docs/mlflow.md) for logged fields, idempotency,
+registry semantics, loading commands, remote-store configuration, and limitations.
+
 ## Development commands
 
 | Command             | Purpose                                    |
@@ -210,6 +233,10 @@ layout, and limitations.
 | `make process`      | Validate raw data, write Parquet + report  |
 | `make features`     | Build RUL labels, splits, and features     |
 | `make train`        | Train/evaluate Loop 4 offline RUL models   |
+| `make train-tracked` | Track Loop 4 and register the champion    |
+| `make mlflow-ui`    | Launch the local MLflow UI                 |
+| `make mlflow-inspect` | Inspect runs, versions, and aliases      |
+| `make mlflow-verify` | Compare registry champion to local bundle |
 | `make eda`          | Execute the EDA notebook top to bottom     |
 | `make hooks`        | Install pre-commit hooks                   |
 
@@ -224,6 +251,9 @@ Settings are typed (`pydantic-settings`) and loaded from environment variables w
 | `TURBINE_GUARD_LOG_LEVEL`    | `INFO`        | `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL` |
 | `TURBINE_GUARD_DATA_DIR`     | `data`        | Base directory for the data layers                 |
 | `TURBINE_GUARD_CMAPSS_SOURCE_URL` | NASA S3 mirror | C-MAPSS archive URL (`https://` or `file://`) |
+| `TURBINE_GUARD_MLFLOW_TRACKING_URI` | `sqlite:///data/mlflow/mlflow.db` | Tracking/registry URI |
+| `TURBINE_GUARD_MLFLOW_EXPERIMENT_NAME` | `TurbineGuard-FD001-Offline-Modeling` | Experiment |
+| `TURBINE_GUARD_MLFLOW_REGISTERED_MODEL_NAME` | `TurbineGuard-FD001-RUL` | Registry name |
 
 Logs are emitted as single-line JSON objects; fields passed via `extra=` on logging calls are merged into the payload.
 
@@ -236,19 +266,22 @@ Logs are emitted as single-line JSON objects; fields passed via `extra=` on logg
 │   ├── data/           # acquisition, manifests, schema, parsing, validation, processing
 │   ├── features/       # RUL labels, asset-level splits, FeatureBuilder, manifests, pipeline
 │   ├── modeling/       # offline models, metrics, conformal, simulation, selection, artifacts
+│   ├── tracking/       # optional MLflow runs, pyfunc, registry, aliases, inspection
 │   ├── services/       # business logic used by the API layer
 │   └── logging_config.py
 ├── scripts/
 │   ├── download_data.py
 │   ├── process_data.py
 │   ├── build_features.py
-│   └── train_models.py
+│   ├── train_models.py
+│   └── mlflow_models.py
 ├── notebooks/
 │   └── 01_eda.ipynb    # the single primary EDA notebook (make eda)
 ├── docs/
 │   ├── data_contract.md
 │   ├── features.md
 │   ├── modeling.md
+│   ├── mlflow.md
 │   └── adr/
 ├── tests/
 │   ├── conftest.py

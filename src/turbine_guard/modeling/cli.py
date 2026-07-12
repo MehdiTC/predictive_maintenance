@@ -38,6 +38,21 @@ def build_parser(default_data_dir: Path) -> argparse.ArgumentParser:
         action="store_true",
         help="Intentionally rebuild even when current artifacts verify.",
     )
+    parser.add_argument(
+        "--track-with-mlflow",
+        action="store_true",
+        help="Track the verified Loop 4 execution and optionally register its champion.",
+    )
+    parser.add_argument(
+        "--force-mlflow-run",
+        action="store_true",
+        help="Create a new parent/child run set even when this execution was already logged.",
+    )
+    parser.add_argument(
+        "--force-new-model-version",
+        action="store_true",
+        help="Register a new version even when the identical champion checksum already exists.",
+    )
     return parser
 
 
@@ -68,12 +83,35 @@ def main(argv: Sequence[str] | None = None) -> int:
     configure_logging(settings.log_level)
     args = build_parser(settings.data_dir).parse_args(argv)
     try:
-        result = train_models(_config_from_args(args))
-    except TrainingError as exc:
+        if (args.force_mlflow_run or args.force_new_model_version) and not args.track_with_mlflow:
+            raise ValueError("MLflow force flags require --track-with-mlflow.")
+        training_config = _config_from_args(args)
+        result = train_models(training_config)
+        tracking_summary: dict[str, object] = {"mlflow_tracking": "disabled"}
+        if args.track_with_mlflow:
+            from turbine_guard.tracking.config import MlflowConfig
+            from turbine_guard.tracking.mlflow_tracker import MlflowTracker
+
+            mlflow_config = MlflowConfig.from_settings(
+                settings,
+                force_new_run=args.force_mlflow_run,
+                force_new_model_version=args.force_new_model_version,
+            )
+            tracked = MlflowTracker(mlflow_config).track(training_config)
+            tracking_summary = {
+                "mlflow_tracking": tracked.status.value,
+                "mlflow_parent_run_id": tracked.parent_run_id,
+                "mlflow_candidate_runs": len(tracked.candidate_run_ids),
+                "registered_model": tracked.registered_model_name,
+                "registered_version": tracked.registered_version,
+                "registry_aliases": tracked.aliases,
+                "max_prediction_difference": tracked.max_prediction_difference,
+            }
+    except (RuntimeError, ValueError) as exc:
         logger.error("model_training_failed", extra={"error": str(exc)})
         return 1
     logger.info(
         "model_training_result",
-        extra={"status": result.status.value, **result.summary},
+        extra={"status": result.status.value, **result.summary, **tracking_summary},
     )
     return 0

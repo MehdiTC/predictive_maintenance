@@ -25,6 +25,13 @@ htmlcov/
 # reproducible via scripts/download_data.py; never commit them)
 /data/
 
+# Alternate local MLflow defaults when configured outside data/
+/mlruns/
+/mlartifacts/
+/mlflow.db
+/mlflow.db-shm
+/mlflow.db-wal
+
 # Notebooks
 .ipynb_checkpoints/
 
