@@ -22,11 +22,11 @@ def read_liveness() -> LivenessResponse:
 def read_readiness(request: Request, response: Response) -> ReadinessResponse:
     """Report whether the service's dependencies allow it to handle requests.
 
-    Loop 0 has no external dependencies, so the check map is empty and the
-    service is always ready. Later loops add real dependency checks, which
-    turn this into a 503 when something required is unavailable.
+    Offline/test applications may inject an empty map. Loop 7 online mode
+    requires PostgreSQL, the champion model, and feature compatibility.
     """
     result = check_readiness(request.app.state.readiness_checks)
+    request.app.state.metrics.ready.set(1 if result.ready else 0)
     if not result.ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return ReadinessResponse(

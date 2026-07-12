@@ -4,7 +4,7 @@ import uuid
 from dataclasses import asdict
 from datetime import datetime
 
-from sqlalchemy import Select, desc, select
+from sqlalchemy import Select, desc, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -63,6 +63,12 @@ class AssetRepository:
 
     def get_by_external_id(self, external_id: str) -> Asset | None:
         return self.session.scalar(select(Asset).where(Asset.external_id == external_id))
+
+    def get_by_external_id_for_update(self, external_id: str) -> Asset | None:
+        """Lock an asset so ingestion order is serialized per asset."""
+        return self.session.scalar(
+            select(Asset).where(Asset.external_id == external_id).with_for_update()
+        )
 
     def list(self, *, limit: int = 100, offset: int = 0) -> list[Asset]:
         if limit <= 0 or offset < 0:
@@ -143,6 +149,12 @@ class SensorReadingRepository:
             .limit(1)
         )
 
+    def count(self) -> int:
+        return int(self.session.scalar(select(func.count()).select_from(SensorReading)) or 0)
+
+    def latest_ingested_at(self) -> datetime | None:
+        return self.session.scalar(select(func.max(SensorReading.ingested_at)))
+
 
 class PredictionRepository:
     """Model-version-pinned prediction history with exact-replay idempotency."""
@@ -198,13 +210,49 @@ class PredictionRepository:
             .limit(1)
         )
 
-    def recent(self, *, since: datetime | None = None, limit: int = 100) -> list[Prediction]:
+    def get_for_model(
+        self, sensor_reading_id: uuid.UUID, model_name: str, model_version: str
+    ) -> Prediction | None:
+        return self.session.scalar(
+            select(Prediction).where(
+                Prediction.sensor_reading_id == sensor_reading_id,
+                Prediction.model_name == model_name,
+                Prediction.model_version == model_version,
+            )
+        )
+
+    def recent(
+        self,
+        *,
+        since: datetime | None = None,
+        asset_id: uuid.UUID | None = None,
+        limit: int = 100,
+    ) -> list[Prediction]:
+        if limit <= 0:
+            raise ValueError("limit must be positive.")
         query: Select[tuple[Prediction]] = select(Prediction)
         if since is not None:
             query = query.where(Prediction.prediction_timestamp >= since)
+        if asset_id is not None:
+            query = query.where(Prediction.asset_id == asset_id)
         return list(
             self.session.scalars(query.order_by(desc(Prediction.prediction_timestamp)).limit(limit))
         )
+
+    def count(self) -> int:
+        return int(self.session.scalar(select(func.count()).select_from(Prediction)) or 0)
+
+    def risk_distribution(self, *, limit: int = 1000) -> dict[str, int]:
+        recent = (
+            select(Prediction.risk_level)
+            .order_by(desc(Prediction.prediction_timestamp))
+            .limit(limit)
+            .subquery()
+        )
+        rows = self.session.execute(
+            select(recent.c.risk_level, func.count()).group_by(recent.c.risk_level)
+        )
+        return {str(risk): int(count) for risk, count in rows}
 
 
 class MaintenanceEventRepository:

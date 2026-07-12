@@ -8,9 +8,9 @@ A production-style predictive-maintenance ML platform for turbine and rotating-e
 
 The project is built in bounded implementation loops (see [PROJECT_SPEC.md](PROJECT_SPEC.md) for the full design, [STATUS.md](STATUS.md) for current state, and [TASKS.md](TASKS.md) for the loop plan).
 
-**Loops 0–6 are complete and validated**. The repository now contains the typed operational
-PostgreSQL schema, Alembic migration, transaction-owned repositories, idempotency behavior, and
-guarded PostgreSQL integration tests. No Loop 7 API or online inference functionality exists.
+**Loops 0–7 are complete and validated**. The versioned API connects strict sensor contracts to
+atomic PostgreSQL persistence, the shared feature builder, and the cached MLflow champion. Replay
+and delayed feedback remain outside this loop.
 
 ## What the finished system will do
 
@@ -261,6 +261,11 @@ Settings are typed (`pydantic-settings`) and loaded from environment variables w
 | `TURBINE_GUARD_MLFLOW_REGISTERED_MODEL_NAME` | `TurbineGuard-FD001-RUL` | Registry name |
 | `TURBINE_GUARD_DATABASE_URL` | local PostgreSQL URL | Operational state; psycopg only |
 | `TURBINE_GUARD_DATABASE_TEST_URL` | unset | Dedicated integration DB; name must contain `test` |
+| `TURBINE_GUARD_ONLINE_INFERENCE_ENABLED` | `true` | Enable `/v1` resources and routes |
+| `TURBINE_GUARD_MODEL_PRELOAD_ENABLED` | `true` | Warm and verify champion during lifespan |
+| `TURBINE_GUARD_ASSET_STALE_AFTER_SECONDS` | `300` | Asset-health staleness threshold |
+| `TURBINE_GUARD_CORS_ALLOWED_ORIGINS` | `[]` | Explicit origins; disabled by default |
+| `TURBINE_GUARD_TRUSTED_HOSTS` | local/test hosts | Explicit host allowlist |
 
 ## Operational PostgreSQL persistence
 
@@ -272,6 +277,25 @@ overwritten. PostgreSQL is independent from MLflow's local SQLite metadata.
 
 See [docs/database.md](docs/database.md) for the schema diagram, constraints/indexes, setup,
 migration commands, test safety guard, transaction semantics, readiness injection, and limitations.
+
+## Online inference and asset health
+
+With PostgreSQL running, the Loop 3 feature layer present, and an MLflow `champion` registered:
+
+```bash
+export TURBINE_GUARD_DATABASE_URL='postgresql+psycopg://localhost:5432/turbine_guard'
+export TURBINE_GUARD_MLFLOW_TRACKING_URI='sqlite:///data/mlflow/mlflow.db'
+uv run alembic upgrade head
+make run
+```
+
+The API exposes versioned sensor ingestion, asset summaries/details/health, recent predictions,
+current model metadata, an operational monitoring summary, readiness, and Prometheus metrics.
+Ingestion auto-creates a generic asset at cycle 1, requires contiguous new cycles, and commits the
+reading and prediction atomically. Exact retries are idempotent; conflicting cycles return 409.
+
+See [docs/online_inference.md](docs/online_inference.md) for contracts, examples, consistency,
+transactions, errors, metrics, readiness, security limitations, and the boundary before replay.
 
 Logs are emitted as single-line JSON objects; fields passed via `extra=` on logging calls are merged into the payload.
 

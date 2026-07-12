@@ -3,9 +3,9 @@
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
@@ -75,6 +75,17 @@ class Settings(BaseSettings):
     database_connect_timeout_seconds: int = 5
     database_statement_timeout_ms: int = 30_000
     database_echo: bool = False
+
+    online_inference_enabled: bool = True
+    model_preload_enabled: bool = True
+    asset_stale_after_seconds: int = 300
+    api_default_page_size: int = 50
+    api_max_page_size: int = 200
+    api_prediction_trend_size: int = 20
+    api_max_request_bytes: int = 1_048_576
+    api_docs_enabled: bool = True
+    cors_allowed_origins: tuple[str, ...] = ()
+    trusted_hosts: tuple[str, ...] = ("localhost", "127.0.0.1", "testserver")
 
     @field_validator("environment", mode="before")
     @classmethod
@@ -153,6 +164,34 @@ class Settings(BaseSettings):
         if value <= 0:
             raise ValueError("Database pool timeout must be positive.")
         return value
+
+    @field_validator(
+        "asset_stale_after_seconds",
+        "api_default_page_size",
+        "api_max_page_size",
+        "api_prediction_trend_size",
+        "api_max_request_bytes",
+    )
+    @classmethod
+    def _positive_online_integer(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("Online API limits and time thresholds must be positive.")
+        return value
+
+    @field_validator("cors_allowed_origins", "trusted_hosts")
+    @classmethod
+    def _non_empty_host_values(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if any(not item.strip() for item in value):
+            raise ValueError("CORS origins and trusted hosts must not contain empty values.")
+        return value
+
+    @model_validator(mode="after")
+    def _valid_page_limits(self) -> Self:
+        if self.api_default_page_size > self.api_max_page_size:
+            raise ValueError("Default API page size must not exceed the maximum.")
+        if self.api_max_page_size > 200:
+            raise ValueError("Loop 7 API page size cannot exceed 200.")
+        return self
 
 
 @lru_cache

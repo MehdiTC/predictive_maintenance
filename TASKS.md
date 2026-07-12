@@ -14,7 +14,7 @@
 
 # Active Loop
 
-None. Loops 0–6 are complete. Loop 7 must not begin without explicit approval.
+None. Loops 0–7 are complete. Loop 8 must not begin without explicit approval.
 
 ---
 
@@ -303,25 +303,25 @@ Do not implement:
 
 ## Loop 7 — FastAPI Inference Service
 
-**Status:** Not started
+**Status:** Complete and validated (2026-07-13) — awaiting review before Loop 8
 
-* [ ] Add versioned API routing.
-* [ ] Implement sensor-ingestion endpoint.
-* [ ] Implement direct prediction endpoint.
-* [ ] Implement asset endpoints.
-* [ ] Implement current-model endpoint.
-* [ ] Implement monitoring-summary endpoint.
-* [ ] Load the MLflow champion.
-* [ ] Use the shared feature pipeline.
-* [ ] Store incoming observations.
-* [ ] Store model predictions.
-* [ ] Return model-version metadata.
-* [ ] Add structured errors.
-* [ ] Add request IDs.
-* [ ] Add service metrics.
-* [ ] Expand readiness checks.
-* [ ] Add integration tests.
-* [ ] Validate Loop 7 acceptance criteria.
+* [x] Add thin versioned `/v1` routes.
+* [x] Implement atomic sensor ingestion and champion prediction.
+* [x] Defer direct prediction endpoint and document why it adds no distinct capability yet.
+* [x] Implement asset list, detail, and health endpoints.
+* [x] Implement current-model and operational monitoring-summary endpoints.
+* [x] Load/cache the MLflow champion by alias with explicit refresh.
+* [x] Use the shared Loop 3 feature configuration and builder.
+* [x] Store readings and version-pinned predictions atomically.
+* [x] Return RUL, interval, risk, horizons, model/run/feature identity, and latency.
+* [x] Add structured safe errors, request IDs, and Prometheus metrics.
+* [x] Require database, model, and feature compatibility in readiness.
+* [x] Add strict contiguous-cycle, idempotency, conflict, gap, and rollback policies.
+* [x] Add unit/API and guarded PostgreSQL/real-champion integration tests.
+* [x] Add ADR 0006 and online inference documentation.
+* [x] Validate Loop 7 acceptance criteria. (273 tests; Ruff/Mypy/pre-commit pass; real PostgreSQL
+  and champion equality; 20-cycle live ingestion; persistence/idempotency/conflict/UTC responses;
+  readiness success and individual dependency failures; Loop 3–6 integrity; no Loop 8 code.)
 
 ---
 

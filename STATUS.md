@@ -3,10 +3,10 @@
 ## Project Status
 
 **Project:** TurbineGuard
-**Current phase:** Loop 6 complete and validated
-**Active loop:** None — awaiting review before Loop 7
-**Overall status:** PostgreSQL operational schema, Alembic migration, typed repositories, transaction boundaries, idempotency, integration tests, and injectable readiness validated; no Loop 7 functionality
-**Last updated:** 2026-07-12
+**Current phase:** Loop 7 complete and validated
+**Active loop:** None — awaiting review before Loop 8
+**Overall status:** FastAPI online inference, asset health, atomic PostgreSQL persistence, shared features, cached MLflow champion, structured errors, readiness, and Prometheus metrics validated; no Loop 8 functionality
+**Last updated:** 2026-07-13
 
 ---
 
@@ -41,7 +41,7 @@ See `PROJECT_SPEC.md` for the complete design.
 
 ## Current Repository State
 
-Loops 0–6 are complete and validated:
+Loops 0–7 are complete and validated:
 
 ```text
 ├── src/turbine_guard/
@@ -107,14 +107,14 @@ data/
 
 Loop 4 model artifacts remain under `data/models/cmapss/FD001/`. Optional Loop 5 runtime state uses
 `data/mlflow/` by default and remains gitignored. PostgreSQL operational persistence is implemented
-under `database/` and Alembic; Prefect, replay, drift calculations, Docker, serving endpoints, and
-deployment remain absent deliberately.
+under `database/` and Alembic. Loop 7 adds serving endpoints; Prefect, replay, delayed feedback,
+drift calculations, Docker, and deployment remain absent deliberately.
 
 ---
 
 ## Current Loop
 
-Loop 6 is complete and validated. Do not begin Loop 7 without explicit approval.
+Loop 7 is complete and validated. Do not begin Loop 8 without explicit approval.
 
 ---
 
@@ -129,6 +129,47 @@ Loop 6 is complete and validated. Do not begin Loop 7 without explicit approval.
   policy (2026-07-12).
 * [x] Implemented and validated Loop 5 — MLflow tracking and model registry (2026-07-12).
 * [x] Implemented and validated Loop 6 — PostgreSQL operational persistence (2026-07-12).
+
+---
+
+## Loop 7 Implementation Notes
+
+1. `/v1` routes cover atomic sensor ingestion, asset list/detail/health, recent predictions,
+   current champion metadata, and currently observable monitoring summary. A direct prediction
+   route is deliberately deferred because one configured champion adds no distinct contract.
+2. Sensor requests strictly validate positive cycles, timezone-aware UTC-normalized timestamps,
+   finite three settings and 21 anonymous sensors, source/schema identifiers, and forbidden extras.
+3. First cycle auto-creates a generic active asset. New cycles must be contiguous from 1; gaps and
+   new older records return 409. Exact historical retries remain valid; changed duplicates return
+   typed conflicts and are never overwritten.
+4. One caller-owned transaction covers asset resolution/locking, reading, same-asset bounded
+   history, shared `FeatureBuilder`, champion prediction, and version-pinned prediction. Feature or
+   model failure rolls the whole request back.
+5. The feature configuration is reconstructed from the verified Loop 3 manifest. Exact feature
+   version and ordered 552-column equality are checked against the registered pyfunc signature.
+6. The MLflow champion is loaded lazily/preloaded from the configurable alias into a thread-safe
+   per-process cache. Registry/run evidence, feature contract, checksum, lineage, and load time are
+   retained; explicit refresh exists without automated watching.
+7. Structured safe errors and `X-Request-ID` correlation cover validation, conflicts, not-found,
+   database/model/feature availability, and unexpected failures. Full sensor payloads and secrets
+   are not logged.
+8. Per-app Prometheus registries expose bounded-label HTTP, ingestion, prediction, failure,
+   latency, risk, readiness, and model identity metrics without collector collisions.
+9. Online lifespan creates/disposes engine resources, optionally preloads the champion, and makes
+   PostgreSQL, model, and feature compatibility required readiness checks. Offline tests can disable
+   or inject resources.
+10. The only direct dependency added is `prometheus-client>=0.21,<1`; no Loop 8 replay/feedback,
+    monitoring calculations, retraining, orchestration, Docker, or deployment functionality exists.
+11. Automated checks passed: `uv sync` resolved 168/checked 163 packages; 113 files formatted;
+    Ruff lint passed; strict Mypy passed over 66 source files; 273 tests passed, including three new
+    PostgreSQL tests with real champion equality and forced rollback; all pre-commit hooks passed.
+    Live validation ingested 20 contiguous real FD001 cycles, persisted exactly 20 readings and 20
+    predictions, returned exact retries with HTTP 200/all idempotency flags, rejected a changed
+    duplicate with HTTP 409, and exposed asset detail/health/recent predictions in UTC.
+12. Live readiness passed with database/model/feature checks true. PostgreSQL-unavailable and
+    missing-champion demonstrations returned 503 with accurate individual checks. Loop 3/4 reruns
+    returned `already_built`/`already_trained`; the registry champion remained exactly equivalent
+    with maximum absolute difference 0.0. No Loop 8 implementation exists.
 
 ---
 
@@ -308,8 +349,8 @@ Loop 6 is complete and validated. Do not begin Loop 7 without explicit approval.
 
 ### Implemented so far
 
-Loops 0–5 are complete; Loop 6 persistence is implemented pending validation. Orchestration,
-serving, online replay, monitoring calculations, and deployment remain design-only.
+Loops 0–6 are complete; Loop 7 serving is implemented pending validation. Orchestration, online
+replay, delayed feedback, monitoring calculations, and deployment remain design-only.
 
 ---
 
@@ -337,7 +378,7 @@ serving, online replay, monitoring calculations, and deployment remain design-on
 
 ## Immediate Next Action
 
-Review and commit Loop 6. Do not begin Loop 7 without explicit approval.
+Review and commit Loop 7. Do not begin Loop 8 without explicit approval.
 
 ---
 
@@ -375,6 +416,28 @@ Review and commit Loop 6. Do not begin Loop 7 without explicit approval.
 ---
 
 ## Validation Status
+
+All Loop 7 commands run on 2026-07-12/13 (macOS, PostgreSQL 17, Python 3.12.13):
+
+| Check | Status | Detail |
+| --- | --- | --- |
+| `uv sync` | Pass | 168 packages resolved; 163 checked |
+| Ruff format/lint | Pass | 113 files formatted; all checks passed |
+| Mypy (strict) | Pass | No issues in 66 source files |
+| Pytest | Pass | 273 passed incl. PostgreSQL and real registered champion |
+| Pre-commit | Pass | Ruff format, Ruff lint, and Mypy hooks passed |
+| Live readiness | Pass | Database, model, and feature contract all true |
+| Live inference | Pass | 20 contiguous real FD001 cycles returned stored champion predictions |
+| Persistence | Pass | Exactly 20 readings and 20 predictions, cycles 1–20 |
+| Idempotency/conflict | Pass | Exact retry HTTP 200/all flags true; changed cycle HTTP 409 |
+| Asset/query API | Pass | Detail, health/trend, recent-first predictions, model metadata |
+| UTC contract | Pass | All external timestamps serialize with `Z` |
+| Metrics | Pass | Prometheus exposition with bounded labels; monitoring summary available |
+| Rollback | Pass | Forced model failure left no asset, reading, or prediction |
+| Failure readiness | Pass | Bad PostgreSQL and missing champion each returned accurate 503 checks |
+| Offline/online equality | Pass | Real HTTP prediction matched shared offline features/champion |
+| Loop 3–6 integrity | Pass | `already_built`, `already_trained`, registry max difference 0.0 |
+| Loop 8 boundary | Pass | No replay, delayed feedback, backfill, or maintenance ingestion code |
 
 All Loop 6 commands run on 2026-07-12 (macOS, PostgreSQL 17, Python 3.12.13 via uv):
 
@@ -467,5 +530,5 @@ WSGI bridge. Tests, registered-model loading, prediction equality, and the UI al
 
 ## Next Planned Loop
 
-After Loop 6 is fully validated and separately approved: **Loop 7 — FastAPI Inference Service**.
+After Loop 7 is fully validated and separately approved: **Loop 8 — Replay and Delayed Feedback**.
 Do not begin it automatically.

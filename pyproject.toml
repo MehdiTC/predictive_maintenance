@@ -10,6 +10,7 @@ dependencies = [
     "joblib>=1.4",
     "mlflow>=3.5,<4",
     "pandas>=2.2",
+    "prometheus-client>=0.21,<1",
     "psycopg[binary]>=3.2,<4",
     "pyarrow>=17",
     "pydantic>=2.9",

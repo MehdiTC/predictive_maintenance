@@ -33,6 +33,11 @@ def test_defaults() -> None:
     assert settings.mlflow_registered_model_name == "TurbineGuard-FD001-RUL"
     assert settings.mlflow_candidate_alias == "candidate"
     assert settings.mlflow_champion_alias == "champion"
+    assert settings.online_inference_enabled is True
+    assert settings.model_preload_enabled is True
+    assert settings.api_default_page_size == 50
+    assert settings.api_max_page_size == 200
+    assert settings.cors_allowed_origins == ()
 
 
 def test_data_settings_read_environment_variables(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -73,6 +78,23 @@ def test_operational_database_settings_are_separate_from_mlflow(
     assert settings.database_url == database_url
     assert settings.database_pool_size == 3
     assert settings.mlflow_tracking_uri == "sqlite:///data/mlflow/mlflow.db"
+
+
+def test_online_settings_read_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TURBINE_GUARD_ONLINE_INFERENCE_ENABLED", "false")
+    monkeypatch.setenv("TURBINE_GUARD_MODEL_PRELOAD_ENABLED", "false")
+    monkeypatch.setenv("TURBINE_GUARD_CORS_ALLOWED_ORIGINS", '["https://example.test"]')
+    monkeypatch.setenv("TURBINE_GUARD_TRUSTED_HOSTS", '["api.example.test"]')
+    settings = Settings()
+    assert settings.online_inference_enabled is False
+    assert settings.model_preload_enabled is False
+    assert settings.cors_allowed_origins == ("https://example.test",)
+    assert settings.trusted_hosts == ("api.example.test",)
+
+
+def test_online_page_limits_are_validated() -> None:
+    with pytest.raises(ValidationError, match="must not exceed"):
+        Settings(api_default_page_size=100, api_max_page_size=50)
 
 
 @pytest.mark.parametrize(

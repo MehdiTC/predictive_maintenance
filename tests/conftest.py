@@ -113,7 +113,11 @@ def feature_data_dir(processed_data_dir: Path) -> Path:
 @pytest.fixture
 def app_settings() -> Settings:
     """Explicit settings so tests do not depend on the ambient environment."""
-    return Settings(environment=Environment.TESTING, log_level="WARNING")
+    return Settings(
+        environment=Environment.TESTING,
+        log_level="WARNING",
+        online_inference_enabled=False,
+    )
 
 
 @pytest.fixture

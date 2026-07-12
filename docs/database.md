@@ -131,9 +131,9 @@ URL; credentials are not stored in `alembic.ini`. Production setup never uses
 ## Readiness
 
 `check_database_connection(engine)` executes `SELECT 1`, returning false for driver, timeout, or
-connection errors. `create_app(..., readiness_checks={"database": check})` makes it a readiness
-dependency. The default map remains empty, so existing Loop 0 API tests and offline workflows do
-not require PostgreSQL. Loop 7 will decide when an API deployment makes the database mandatory.
+connection errors. Loop 7 online mode installs it as a required readiness dependency together with
+the champion and feature contract. Offline/test app construction can disable online inference or
+inject checks, so unrelated workflows still open no connection.
 
 ## Production and backup considerations
 
@@ -145,7 +145,6 @@ implemented here.
 
 ## Limitations
 
-No API schemas/routes, ordering policy beyond duplicate-cycle ambiguity, bulk-copy optimization,
-partitioning, drift computation, performance monitoring, backfill logic, orchestration, Docker,
-or deployment exists. UUID creation and full sensor payload comparison add small overhead that is
-appropriate for the current scale.
+Loop 7 provides API schemas/routes and a strict contiguous-cycle policy. Bulk-copy optimization,
+partitioning, drift/performance calculations, backfill, orchestration, Docker, and deployment do
+not exist. UUID creation and full sensor payload comparison add small overhead appropriate here.
