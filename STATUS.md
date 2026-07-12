@@ -3,9 +3,9 @@
 ## Project Status
 
 **Project:** TurbineGuard
-**Current phase:** Loop 3 implemented and validated
-**Active loop:** None — Loop 3 complete, awaiting review before Loop 4
-**Overall status:** Foundation, reproducible acquisition, validated Parquet processing, EDA, RUL labels, deterministic asset-level splits, and a leakage-safe shared feature pipeline in place; no models yet
+**Current phase:** Loop 4 complete and validated
+**Active loop:** None — awaiting review before Loop 5
+**Overall status:** Offline model training/evaluation, validation-only selection, conformal uncertainty, simulated policy comparison, and reproducible local artifacts validated; no Loop 5 functionality
 **Last updated:** 2026-07-12
 
 ---
@@ -41,7 +41,7 @@ See `PROJECT_SPEC.md` for the complete design.
 
 ## Current Repository State
 
-Loops 0–3 are implemented:
+Loops 0–3 are validated and Loop 4 is implemented:
 
 ```text
 ├── src/turbine_guard/
@@ -64,16 +64,19 @@ Loops 0–3 are implemented:
 │   │   ├── manifest.py         # SplitManifest + FeatureManifest models/persistence
 │   │   ├── pipeline.py         # verify inputs → labels → split → features → outputs
 │   │   └── build_cli.py        # feature-build CLI
+│   ├── modeling/               # Loop 4 models, metrics, alerts, conformal, simulation, artifacts
 │   ├── services/health.py
 │   └── logging_config.py       # structured JSON logging
 ├── scripts/download_data.py     # thin wrappers over turbine_guard CLIs
 ├── scripts/process_data.py
 ├── scripts/build_features.py
+├── scripts/train_models.py
 ├── notebooks/01_eda.ipynb       # the single primary EDA notebook, executed
 ├── docs/data_contract.md        # raw structure, canonical schema, validation rules, outputs
 ├── docs/features.md             # Loop 3 contract: labels, splits, features, manifests
-├── docs/adr/0001-…, 0002-…      # Loop 2 + Loop 3 decision records
-├── tests/                       # 183 tests: unit (offline) + local FD001 integration (auto-skip)
+├── docs/modeling.md             # Loop 4 roles, formulas, policies, artifacts, limitations
+├── docs/adr/0001-…, 0003-…      # Loop 2–4 material decision records
+├── tests/                       # unit fixtures + optional local FD001 integration
 ├── data/                        # gitignored: raw, manifests, processed, features
 └── pyproject.toml / uv.lock / Makefile / .pre-commit-config.yaml / .env.example / README.md
 ```
@@ -100,13 +103,15 @@ data/
     └── feature_manifest.json    # feature definition, columns, checksums, provenance
 ```
 
-No models, database, MLflow, Prefect, replay service, monitoring, Docker, or CI functionality exists yet — deliberately.
+Loop 4 model artifacts are generated locally under `data/models/cmapss/FD001/` by `make train` and
+remain gitignored. No database, MLflow, registry, Prefect, replay service, monitoring, Docker, or
+deployment functionality exists yet — deliberately.
 
 ---
 
 ## Current Loop
 
-None active. Loop 3 is complete and awaiting review. The next loop (Loop 4 — Baseline Modeling and Evaluation) must not begin without explicit approval.
+Loop 4 is complete and validated. Loop 5 must not begin without explicit approval.
 
 ---
 
@@ -117,6 +122,36 @@ None active. Loop 3 is complete and awaiting review. The next loop (Loop 4 — B
 * [x] Implemented Loop 1 — dataset acquisition and manifesting (2026-07-12).
 * [x] Implemented Loop 2 — validation, processing, and EDA (2026-07-12).
 * [x] Implemented Loop 3 — labels, asset-level splits, and leakage-safe features (2026-07-12).
+* [x] Implemented Loop 4 — offline modeling, evaluation, uncertainty, and simulated maintenance
+  policy (2026-07-12).
+
+---
+
+## Loop 4 Implementation Notes
+
+1. Exact Loop 3 manifests/checksums, column order, role labels/counts, and disjoint asset IDs are
+   verified before fitting; model features are never inferred from numeric columns.
+2. Constant median, Ridge, histogram-gradient-boosting, and XGBoost approaches are evaluated over
+   uncapped and capped-125 targets with a small recorded manual grid and fixed seeds.
+3. Ridge preprocessing is train-only median imputation plus missing indicators and scaling; tree
+   candidates use native structural-null support. Pipelines are serialized with the model.
+4. Validation alone determines operational eligibility and champion ranking. Calibration only
+   fits the finite-sample conformal residual quantile. Replay and official final-row metrics cannot
+   affect selection.
+5. Reports include row/asset regression metrics, lifecycle/length slices, NASA asymmetric score,
+   alert rows and collapsed episodes, lead time, coverage/width, latency/size, coefficients/
+   importance, and explicitly simulated normalized-cost maintenance policies.
+6. Candidate pipelines, champion bundle, metadata, JSON/CSV/Markdown reports, and a completion
+   manifest are local, checksummed, tamper-detected, idempotent, and deliberately not registered.
+7. ADR 0003 records imputation, target comparison, alerts, conformal approximation, champion
+   policy, simulation, and joblib safety decisions. Full behavior is in `docs/modeling.md`.
+8. **Real FD001 result:** all 14 configurations trained. Capped-125 Ridge (`alpha=1`) won on
+   validation common-domain RMSE 14.448 with critical recall 0.763 and 0.633 false alarms per
+   1,000 cycles. Replay RMSE was 13.955; official final-row RMSE was 14.407.
+9. **Intervals and simulation:** replay empirical 90% interval coverage was 0.898 with average
+   width 39.148. In the base normalized simulation, predictive cost was 42.83 versus reactive
+   120.0 (−64.3%), with 10 planned interventions, no simulated failures/misses, and 261 cycles of
+   useful life forfeited. These are simulated normalized units, not currency or claimed savings.
 
 ---
 
@@ -191,10 +226,12 @@ None active. Loop 3 is complete and awaiting review. The next loop (Loop 4 — B
 * Loop 1: configurable source URL with `file://` support; verify-on-rerun checksum model; immutable read-only raw layer; manifests and datasets excluded from git.
 * Loop 2 (ADR 0001): pandas + pyarrow runtime; typed hand-rolled validation (no Great Expectations/pandera); matplotlib/nbconvert/ipykernel dev-only; SciPy deferred; validated and processed layers collapsed into one gated step; required-vs-warning check separation; canonical FD001 profile separate from general validation.
 * Loop 3 (ADR 0002): 70/15/5/10 asset-level split via seeded permutation + largest-remainder counts; preserve early-cycle rows with structural nulls, defer imputation/scaling to Loop 4; trailing asset-grouped windows with min_periods=1 and OLS rolling slope (degenerate → 0.0); optional off-by-default RUL cap alongside the always-present uncapped target; stateless FeatureBuilder with a history-replaying incremental state; frozen-dataclass configuration (no YAML layer).
+* Loop 4 (ADR 0003): train-only Ridge imputation/indicators/scaling; native-null histogram gradient boosting and XGBoost; uncapped/capped-125 targets with common-domain ranking; collapsed first-alert episodes; row-level split conformal approximation; validation-only eligibility/ranking with simplicity tolerance; normalized simulated costs; checksummed joblib artifacts.
 
 ### Implemented so far
 
-Loops 0–3 only. All modeling/persistence/orchestration decisions remain design-only.
+Loops 0–4 only. MLflow, registry, persistence, orchestration, serving,
+online replay, monitoring, and deployment remain design-only.
 
 ---
 
@@ -209,18 +246,22 @@ Loops 0–3 only. All modeling/persistence/orchestration decisions remain design
 7. Time-series leakage is a major modeling risk; Loop 3 added explicit structural protections and tests (future-row mutation/append, cross-asset isolation, fit isolation, replay exclusion), which future loops must keep passing.
 8. Retraining on very few newly labeled replay assets may not provide meaningful improvements.
 9. NASA hosting has moved before and may move again; the source URL is configuration, and `file://` acquisition provides a manual fallback.
-10. Relative-variance heuristics mislead on FD001 (sensors 08/13). Loop 3 deliberately generates features for **all** columns (constant ones degrade to constants/zeros); trend/information-based feature *selection* is a Loop 4 modeling decision.
-11. The shortest test history is 31 cycles; Loop 3 handles short-history warm-up via `min_periods=1` trailing windows and structural nulls, but Loop 4 models must handle those early-cycle nulls explicitly.
+10. Relative-variance heuristics mislead on FD001 (sensors 08/13). Loop 3 deliberately generates
+    features for **all** columns; Loop 4 reports importance/coefficient concentration but does not
+    redesign the stable feature contract without a separate ablation study.
+11. The shortest test history is 31 cycles. Loop 4 preserves those rows and handles their
+    structural nulls through train-only Ridge imputation or native-null tree models.
 12. pandas 3.x is newer than most tutorials/snippets assume; future code must target the pandas 3 API.
-13. Early-cycle feature rows contain structural nulls by design (no imputation in Loop 3); any Loop 4 imputation must be fit on training assets only and applied identically everywhere.
+13. Split conformal calibration uses temporally dependent rows within five calibration assets;
+    replay coverage is empirical evidence, not a strict trajectory-level exchangeability guarantee.
 
 ---
 
 ## Immediate Next Action
 
-Review Loop 3. After explicit approval, begin **Loop 4 — Baseline Modeling and Evaluation**.
+Review Loop 4. Do not begin Loop 5 without explicit approval.
 
-Loop 3 changes are left uncommitted pending review (same policy as Loops 0–2; Loop 2 was committed as `aa27dfc` after review).
+Loop 4 changes are left uncommitted pending review (the repository remains at the Loop 3 tag).
 
 ---
 
@@ -259,7 +300,25 @@ Loop 3 changes are left uncommitted pending review (same policy as Loops 0–2; 
 
 ## Validation Status
 
-All commands run on 2026-07-12 (macOS, Python 3.12.13 via uv), after Loop 3:
+All Loop 4 commands run on 2026-07-12 (macOS, Python 3.12.13 via uv):
+
+| Check | Status | Detail |
+| --- | --- | --- |
+| `uv sync` | Pass | 114 packages resolved; 109 checked |
+| Ruff format check | Pass | 76 files formatted (one indicated file formatted, focused check passed) |
+| Ruff lint check | Pass | All checks passed |
+| Mypy (strict) | Pass | No issues in 42 source files |
+| Pytest | Pass | 219 passed, including real FD001 input-contract integration |
+| Pre-commit (all files) | Pass | Ruff format, Ruff lint/fix, and mypy hooks passed |
+| Real FD001 forced training | Pass | 14 candidates; champion `capped_125--ridge_alpha_1` |
+| Idempotent rerun | Pass | `already_trained`; current inputs/configuration/artifact checksums verified |
+| Replay evaluation | Pass | MAE 10.541; RMSE 13.955; critical recall 0.768; no missed failures |
+| Official NASA benchmark | Pass | Final-row MAE 11.689; RMSE 14.407; NASA score 309.229 |
+| Conformal evaluation | Pass | Replay coverage 0.898; average width 39.148; official coverage 0.890 |
+| Simulated policy | Pass | Base predictive 42.83 vs reactive 120.0 normalized units |
+| Loop 3 feature integrity | Pass | Before/after SHA-256 diff empty |
+
+Prior Loop 3 validation (retained for history):
 
 | Check                          | Status | Detail                                                        |
 | ------------------------------ | ------ | ------------------------------------------------------------- |
@@ -277,20 +336,20 @@ All commands run on 2026-07-12 (macOS, Python 3.12.13 via uv), after Loop 3:
 | Offline vs incremental (real)  | Pass   | Engine 1, 192 cycles: equal at every cycle                     |
 | Raw + processed integrity      | Pass   | All raw and Loop 2 Parquet checksums unchanged after the build |
 
-Known warning (non-blocking, upstream, unchanged since Loop 0): importing `fastapi.testclient` with starlette 1.3.1 emits a `StarletteDeprecationWarning` recommending `httpx2`; originates in FastAPI's own compatibility import.
+Known non-blocking upstream warnings: FastAPI's compatibility import emits the existing
+`StarletteDeprecationWarning`; joblib 1.5.3 emits a NumPy 2.5 shape-assignment deprecation while
+reloading compressed artifacts. Tests and prediction-equality checks pass.
 
 ---
 
 ## Last Completed Loop
 
-**Loop 3 — Labels, Asset-Level Splits, and Leakage-Safe Features** (2026-07-12).
+**Loop 4 — Model Training, Evaluation, Uncertainty, and Maintenance-Policy Simulation**
+(2026-07-12).
 
 ---
 
 ## Next Planned Loop
 
-After Loop 3 is reviewed and explicitly approved:
-
-**Loop 4 — Baseline Modeling and Evaluation**
-
-Do not begin Loop 4 automatically.
+After Loop 4 is reviewed and explicitly approved: **Loop 5 — MLflow Integration**. Do not begin it
+automatically.

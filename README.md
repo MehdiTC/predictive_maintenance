@@ -8,7 +8,7 @@ A production-style predictive-maintenance ML platform for turbine and rotating-e
 
 The project is built in bounded implementation loops (see [PROJECT_SPEC.md](PROJECT_SPEC.md) for the full design, [STATUS.md](STATUS.md) for current state, and [TASKS.md](TASKS.md) for the loop plan).
 
-**Loops 0–3 are complete**: a typed, tested Python 3.12 package with environment-based settings, structured JSON logging, a minimal FastAPI service exposing liveness and readiness endpoints, reproducible checksummed acquisition of the NASA C-MAPSS FD001 dataset, a validated Parquet processing pipeline with a machine-readable data-quality report, an executable EDA notebook, and a leakage-safe feature layer: RUL labels, deterministic asset-level train/validation/calibration/replay splits, one shared `FeatureBuilder` (offline batch and single-asset incremental), and checksummed split/feature manifests. Modeling and the online system arrive in later loops.
+**Loops 0–4 are complete**: the repository now also contains a validated leakage-safe offline RUL training/evaluation system with constant, Ridge, histogram-gradient-boosting, and XGBoost candidates, validation-only champion selection, split conformal intervals, maintenance-alert evaluation, normalized-cost policy simulation, and checksummed local artifacts. MLflow and the online system remain later loops.
 
 ## What the finished system will do
 
@@ -166,6 +166,33 @@ and scaling are deferred to the model pipeline (Loop 4). Re-running is idempoten
 fail loudly, and `--force` rebuilds. The full contract — feature definitions, rolling semantics,
 leakage protections, and manifest structure — is in [docs/features.md](docs/features.md).
 
+## Offline model training and evaluation
+
+```bash
+make train
+# equivalent to: uv run python scripts/train_models.py
+# options: --data-dir <dir> --output-dir <dir> --seed <int> --rul-cap <int>
+#          --critical-horizon <int> --warning-horizon <int>
+#          --conformal-coverage <float> --force
+```
+
+The command verifies the Loop 3 manifests, checksums, exact ordered feature contract, and disjoint
+asset roles before fitting. Preprocessing is learned from training rows only; validation selects
+the champion, calibration fits only the conformal residual quantile, and replay plus the official
+NASA final-row benchmark are evaluated only after selection.
+
+Candidates include a training-median constant, Ridge with median imputation/missing indicators/
+scaling, histogram gradient boosting with native null handling, and XGBoost with native null
+handling. Uncapped RUL and a 125-cycle capped target are compared using a compatible late-life
+domain. Reports combine regression, asset/lifecycle slices, alert episodes and lead time,
+uncertainty coverage/width, latency/size, interpretation, and explicitly simulated normalized-cost
+maintenance policies.
+
+Artifacts are written under `data/models/cmapss/FD001/` and are checksummed/idempotent. Joblib
+files use pickle semantics and must only be loaded from trusted, checksum-verified sources. See
+[docs/modeling.md](docs/modeling.md) for formulas, alert definitions, policy assumptions, artifact
+layout, and limitations.
+
 ## Development commands
 
 | Command             | Purpose                                    |
@@ -182,6 +209,7 @@ leakage protections, and manifest structure — is in [docs/features.md](docs/fe
 | `make acquire`      | Download the C-MAPSS FD001 dataset         |
 | `make process`      | Validate raw data, write Parquet + report  |
 | `make features`     | Build RUL labels, splits, and features     |
+| `make train`        | Train/evaluate Loop 4 offline RUL models   |
 | `make eda`          | Execute the EDA notebook top to bottom     |
 | `make hooks`        | Install pre-commit hooks                   |
 
@@ -207,17 +235,20 @@ Logs are emitted as single-line JSON objects; fields passed via `extra=` on logg
 │   ├── config/         # typed environment-based settings
 │   ├── data/           # acquisition, manifests, schema, parsing, validation, processing
 │   ├── features/       # RUL labels, asset-level splits, FeatureBuilder, manifests, pipeline
+│   ├── modeling/       # offline models, metrics, conformal, simulation, selection, artifacts
 │   ├── services/       # business logic used by the API layer
 │   └── logging_config.py
 ├── scripts/
 │   ├── download_data.py
 │   ├── process_data.py
-│   └── build_features.py
+│   ├── build_features.py
+│   └── train_models.py
 ├── notebooks/
 │   └── 01_eda.ipynb    # the single primary EDA notebook (make eda)
 ├── docs/
 │   ├── data_contract.md
 │   ├── features.md
+│   ├── modeling.md
 │   └── adr/
 ├── tests/
 │   ├── conftest.py

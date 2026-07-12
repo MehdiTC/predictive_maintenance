@@ -14,11 +14,40 @@
 
 # Active Loop
 
-None. Loops 0–3 are complete; Loop 3 is awaiting review. Loop 4 must not begin without explicit approval.
+None. Loops 0–4 are complete. Loop 5 must not begin without explicit approval.
 
 ---
 
 # Completed Loops
+
+## Loop 4 — Model Training, Evaluation, Uncertainty, and Policy Simulation
+
+**Status:** Complete (2026-07-12) — validated locally; awaiting review before Loop 5
+
+* [x] Verify Loop 3 checksums, schemas, ordered features, split roles, and asset isolation before fit.
+* [x] Fit all learned preprocessing on training rows only; preserve structural early-cycle rows.
+* [x] Implement the constant training-median baseline.
+* [x] Implement Ridge with median imputation, missing indicators, and scaling.
+* [x] Implement histogram gradient boosting with native missing-value support.
+* [x] Implement deterministic CPU XGBoost candidates with native missing-value support.
+* [x] Use the identical asset splits for every target/model candidate.
+* [x] Compare uncapped RUL with an explicit 125-cycle capped target on compatible truth.
+* [x] Implement MAE, RMSE, R-squared, NASA asymmetric score, asset aggregation, and slices.
+* [x] Implement configurable row alerts, collapsed episodes, false alarms, missed failures, and lead time.
+* [x] Implement finite-sample split conformal intervals using calibration rows only.
+* [x] Implement configurable reactive/predictive normalized-cost simulation and sensitivity cases.
+* [x] Implement validation-only operational eligibility, metric ranking, and simpler-model tie preference.
+* [x] Serialize every candidate and a reloadable champion bundle with checksummed metadata.
+* [x] Generate JSON, CSV, and Markdown evaluation/selection/interpretation reports.
+* [x] Add the deterministic training CLI, idempotency, tamper detection, and `--force` rebuild.
+* [x] Add deterministic unit tests and a lightweight real-FD001 contract integration test.
+* [x] Add ADR 0003 and `docs/modeling.md`; update README/status/task documentation.
+* [x] Run all requested quality gates and the real FD001 training/inspection commands. (219 tests;
+  all quality gates pass; 14 real candidates trained; idempotent rerun and input integrity verified.)
+* [x] Validate Loop 4 acceptance criteria. (Capped-125 Ridge alpha 1 selected on validation;
+  replay/official/conformal/simulation reports verified; no Loop 5 functionality.)
+
+---
 
 ## Loop 0 — Repository Foundation
 
@@ -199,23 +228,23 @@ Do not implement:
 
 ## Loop 4 — Baseline Modeling and Evaluation
 
-**Status:** Not started
+**Status:** Complete above
 
-* [ ] Implement constant baseline.
-* [ ] Implement Ridge regression.
-* [ ] Implement a tree-based baseline.
-* [ ] Implement XGBoost.
-* [ ] Use identical splits for all models.
-* [ ] Add MAE and RMSE.
-* [ ] Add NASA asymmetric score.
-* [ ] Add failure-horizon metrics.
-* [ ] Add false-alarm and lead-time metrics.
-* [ ] Add lifecycle slice evaluation.
-* [ ] Add conformal prediction intervals.
-* [ ] Add configurable maintenance-policy simulation.
-* [ ] Generate an evaluation report.
-* [ ] Select the champion using explicit criteria.
-* [ ] Validate Loop 4 acceptance criteria.
+* [x] Implement constant baseline.
+* [x] Implement Ridge regression.
+* [x] Implement a tree-based baseline.
+* [x] Implement XGBoost.
+* [x] Use identical splits for all models.
+* [x] Add MAE and RMSE.
+* [x] Add NASA asymmetric score.
+* [x] Add failure-horizon metrics.
+* [x] Add false-alarm and lead-time metrics.
+* [x] Add lifecycle slice evaluation.
+* [x] Add conformal prediction intervals.
+* [x] Add configurable maintenance-policy simulation.
+* [x] Generate an evaluation report.
+* [x] Select the champion using explicit criteria.
+* [x] Validate Loop 4 acceptance criteria.
 
 ---
 
@@ -406,12 +435,17 @@ The following are optional and must not be implemented until the complete core p
 
 # Unresolved Issues
 
-Updated at Loop 3 completion (2026-07-12). None block Loop 3 acceptance.
+Updated at Loop 4 completion (2026-07-12). None block Loop 4 acceptance.
 
 1. ~~No initial git commit exists yet.~~ **Resolved:** Loop 0 committed as `d95b528`, Loop 1 as `94ae615`, Loop 2 as `aa27dfc`. Loop 3 changes are intentionally uncommitted pending review (same policy).
 2. **Upstream deprecation warning in the test suite.** Importing `fastapi.testclient` with starlette 1.3.1 emits `StarletteDeprecationWarning: Using httpx with starlette.testclient is deprecated; install httpx2 instead.` The warning originates in FastAPI's own compatibility import, not project code; FastAPI's TestClient currently requires `httpx`. Revisit when FastAPI completes its migration.
 3. **NASA hosting stability.** The legacy `ti.arc.nasa.gov` C-MAPSS URL is dead and `data.nasa.gov` returns 404; acquisition defaults to NASA's S3 mirror (`phm-datasets.s3.amazonaws.com`). If that moves too, set `TURBINE_GUARD_CMAPSS_SOURCE_URL` (or `--url`, including `file://` for a manually downloaded archive). No code change should be needed.
 4. **pandas 3.x.** `uv` resolved pandas 3.0.3 (not 2.x). Loops 2–3 code targets the pandas 3 API (e.g., `method="spearman"` now requires SciPy, avoided via rank-then-Pearson). Future loops must not assume pandas 2 behavior.
 5. ~~Positional RUL correspondence must be encoded explicitly in Loop 3.~~ **Resolved:** `build_test_benchmark_labels` asserts the row *i* ↔ test unit *i + 1* correspondence (count equality + contiguous 1..N asset IDs) and `docs/features.md` documents that it cannot be verified from file contents alone.
-6. **Early-cycle structural nulls.** Loop 3 deliberately preserves early-cycle rows with null delta/std values and defers imputation to Loop 4 (ADR 0002). Loop 4 model pipelines must handle these nulls explicitly (impute fitted on train assets only, or use models that tolerate missing values).
+6. ~~**Early-cycle structural nulls.**~~ **Resolved in Loop 4:** Ridge fits median imputation,
+   missing indicators, and scaling on training rows only; histogram gradient boosting and XGBoost
+   use native missing-value support. Tests prove held-out values cannot alter fitted preprocessing.
 7. **Incremental state holds full history.** `IncrementalFeatureState` retains each asset's complete observation history (cheap at C-MAPSS trajectory lengths ≤ 362, and keeps EWM exactly equal to batch). If a future dataset has much longer histories, a bounded-buffer variant with a running EWM accumulator would be needed (documented in ADR 0002).
+8. **Upstream joblib/NumPy deprecation warning.** Joblib 1.5.3 assigns NumPy array shapes while
+   reloading compressed artifacts, which NumPy 2.5 warns is deprecated. Serialization and reload
+   equality tests pass; revisit when joblib updates the implementation.

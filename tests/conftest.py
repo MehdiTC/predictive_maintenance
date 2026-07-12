@@ -15,6 +15,7 @@ from turbine_guard.config.settings import Environment, Settings
 from turbine_guard.data.acquisition import AcquisitionConfig, acquire
 from turbine_guard.data.processing import ProcessingConfig, process
 from turbine_guard.data.schema import SENSOR_COLUMNS, TRAJECTORY_COLUMNS, TRAJECTORY_DTYPES
+from turbine_guard.features.pipeline import FeatureBuildConfig, build_features
 
 
 def make_trajectory_line(asset_id: int, cycle: int) -> str:
@@ -100,6 +101,13 @@ def processed_data_dir(
     acquire(AcquisitionConfig(data_dir=data_dir, source_url=archive.as_uri()))
     process(ProcessingConfig(data_dir=data_dir, validate_canonical=False))
     return data_dir
+
+
+@pytest.fixture
+def feature_data_dir(processed_data_dir: Path) -> Path:
+    """A complete small Loop 3 feature layer for Loop 4 unit tests."""
+    build_features(FeatureBuildConfig(data_dir=processed_data_dir))
+    return processed_data_dir
 
 
 @pytest.fixture

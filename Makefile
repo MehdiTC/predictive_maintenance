@@ -2,7 +2,7 @@
 
 UV ?= uv
 
-.PHONY: help install hooks format format-check lint lint-fix typecheck test check run acquire process features eda
+.PHONY: help install hooks format format-check lint lint-fix typecheck test check run acquire process features train eda
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -44,6 +44,9 @@ process: ## Validate acquired FD001 raw files and write Parquet + report
 
 features: ## Build RUL labels, asset-level splits, and features (requires make process)
 	$(UV) run python scripts/build_features.py
+
+train: ## Train and evaluate Loop 4 RUL models (requires make features)
+	$(UV) run python scripts/train_models.py
 
 eda: ## Execute the EDA notebook top to bottom (requires make process)
 	$(UV) run jupyter nbconvert --to notebook --execute --inplace notebooks/01_eda.ipynb

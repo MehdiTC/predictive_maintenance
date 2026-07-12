@@ -6,11 +6,14 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.115",
+    "joblib>=1.4",
     "pandas>=2.2",
     "pyarrow>=17",
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
+    "scikit-learn>=1.6",
     "uvicorn[standard]>=0.32",
+    "xgboost>=2.1",
 ]
 
 [dependency-groups]
@@ -24,6 +27,7 @@ dev = [
     "pre-commit>=4.0",
     "pytest>=8.3",
     "ruff>=0.8",
+    "scikit-learn-stubs>=0.0.3",
 ]
 
 [build-system]
