@@ -1,0 +1,23 @@
+# Hooks run through `uv run` so they use the exact tool versions pinned in
+# uv.lock, keeping pre-commit, local commands, and CI consistent.
+#
+# Install with: make hooks   (or: uv run pre-commit install)
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix
+        language: system
+        types_or: [python, pyi]
+      - id: mypy
+        name: mypy (src)
+        entry: uv run mypy src
+        language: system
+        pass_filenames: false
+        types_or: [python, pyi]
