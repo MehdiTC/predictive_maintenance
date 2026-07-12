@@ -32,6 +32,11 @@ htmlcov/
 /mlflow.db-shm
 /mlflow.db-wal
 
+# Local PostgreSQL dumps and ad-hoc database exports
+/db-dumps/
+/*.dump
+/*.backup
+
 # Notebooks
 .ipynb_checkpoints/
 

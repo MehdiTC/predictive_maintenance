@@ -27,7 +27,7 @@ def test_readiness_reports_failed_checks_with_503(
 ) -> None:
     monkeypatch.setattr(
         "turbine_guard.api.routes.health.check_readiness",
-        lambda: ReadinessResult(checks={"database": False}),
+        lambda _: ReadinessResult(checks={"database": False}),
     )
 
     response = client.get("/health/ready")

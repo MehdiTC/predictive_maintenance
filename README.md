@@ -8,10 +8,9 @@ A production-style predictive-maintenance ML platform for turbine and rotating-e
 
 The project is built in bounded implementation loops (see [PROJECT_SPEC.md](PROJECT_SPEC.md) for the full design, [STATUS.md](STATUS.md) for current state, and [TASKS.md](TASKS.md) for the loop plan).
 
-**Loops 0–5 are complete**: the validated offline RUL pipeline now has optional MLflow parent/
-child experiment tracking, complete lineage, rich pyfunc packaging, a SQLite-backed local model
-registry, stable aliases, model cards, and prediction-equivalence verification. The operational
-database and online system remain later loops.
+**Loops 0–6 are complete and validated**. The repository now contains the typed operational
+PostgreSQL schema, Alembic migration, transaction-owned repositories, idempotency behavior, and
+guarded PostgreSQL integration tests. No Loop 7 API or online inference functionality exists.
 
 ## What the finished system will do
 
@@ -237,6 +236,12 @@ registry semantics, loading commands, remote-store configuration, and limitation
 | `make mlflow-ui`    | Launch the local MLflow UI                 |
 | `make mlflow-inspect` | Inspect runs, versions, and aliases      |
 | `make mlflow-verify` | Compare registry champion to local bundle |
+| `make db-check`    | Check PostgreSQL connectivity/revision      |
+| `make db-upgrade`  | Apply operational schema migrations         |
+| `make db-current`  | Show the current Alembic revision           |
+| `make db-history`  | Show migration history                      |
+| `make db-downgrade` | Downgrade one revision (development only) |
+| `make db-test`     | Run guarded PostgreSQL integration tests    |
 | `make eda`          | Execute the EDA notebook top to bottom     |
 | `make hooks`        | Install pre-commit hooks                   |
 
@@ -254,6 +259,19 @@ Settings are typed (`pydantic-settings`) and loaded from environment variables w
 | `TURBINE_GUARD_MLFLOW_TRACKING_URI` | `sqlite:///data/mlflow/mlflow.db` | Tracking/registry URI |
 | `TURBINE_GUARD_MLFLOW_EXPERIMENT_NAME` | `TurbineGuard-FD001-Offline-Modeling` | Experiment |
 | `TURBINE_GUARD_MLFLOW_REGISTERED_MODEL_NAME` | `TurbineGuard-FD001-RUL` | Registry name |
+| `TURBINE_GUARD_DATABASE_URL` | local PostgreSQL URL | Operational state; psycopg only |
+| `TURBINE_GUARD_DATABASE_TEST_URL` | unset | Dedicated integration DB; name must contain `test` |
+
+## Operational PostgreSQL persistence
+
+Loop 6 stores assets, sensor readings, model-version-pinned predictions, maintenance events,
+model evaluations, drift report records, and pipeline runs in PostgreSQL. Repositories never
+commit implicitly; callers own atomic transaction boundaries. Sensor cycles and predictions are
+idempotent on explicit database uniqueness keys, with conflicting retries rejected rather than
+overwritten. PostgreSQL is independent from MLflow's local SQLite metadata.
+
+See [docs/database.md](docs/database.md) for the schema diagram, constraints/indexes, setup,
+migration commands, test safety guard, transaction semantics, readiness injection, and limitations.
 
 Logs are emitted as single-line JSON objects; fields passed via `extra=` on logging calls are merged into the payload.
 

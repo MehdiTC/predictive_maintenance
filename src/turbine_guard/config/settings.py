@@ -7,6 +7,8 @@ from typing import Literal
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 
 from turbine_guard.data.acquisition import DEFAULT_SOURCE_URL
 
@@ -62,6 +64,18 @@ class Settings(BaseSettings):
     mlflow_run_name_prefix: str = "fd001-offline"
     mlflow_project_tag: str = "turbine-guard"
 
+    database_url: str = "postgresql+psycopg://localhost:5432/turbine_guard"
+    """Operational PostgreSQL URL; deliberately separate from MLflow's backend."""
+
+    database_test_url: str | None = None
+    database_pool_size: int = 5
+    database_max_overflow: int = 10
+    database_pool_timeout_seconds: float = 30.0
+    database_pool_recycle_seconds: int = 1800
+    database_connect_timeout_seconds: int = 5
+    database_statement_timeout_ms: int = 30_000
+    database_echo: bool = False
+
     @field_validator("environment", mode="before")
     @classmethod
     def _normalize_environment(cls, value: object) -> object:
@@ -96,6 +110,49 @@ class Settings(BaseSettings):
         if not normalized:
             raise ValueError("MLflow configuration values must not be empty.")
         return normalized
+
+    @field_validator("database_url", "database_test_url")
+    @classmethod
+    def _postgresql_url(cls, value: str | None) -> str | None:
+        """Accept only explicit psycopg PostgreSQL URLs for operational storage."""
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized.startswith("postgresql+psycopg://"):
+            raise ValueError("Operational database URLs must use postgresql+psycopg://.")
+        try:
+            parsed = make_url(normalized)
+        except ArgumentError as exc:
+            raise ValueError("Operational database URL is malformed.") from exc
+        if not parsed.database:
+            raise ValueError("Operational database URL must include a database name.")
+        return normalized
+
+    @field_validator(
+        "database_pool_size",
+        "database_pool_recycle_seconds",
+        "database_connect_timeout_seconds",
+        "database_statement_timeout_ms",
+    )
+    @classmethod
+    def _positive_database_integer(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("Database pool and timeout settings must be positive.")
+        return value
+
+    @field_validator("database_max_overflow")
+    @classmethod
+    def _non_negative_database_integer(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("Database max overflow must be non-negative.")
+        return value
+
+    @field_validator("database_pool_timeout_seconds")
+    @classmethod
+    def _positive_database_float(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("Database pool timeout must be positive.")
+        return value
 
 
 @lru_cache

@@ -1,5 +1,6 @@
 """Health-check logic, kept separate from API route definitions."""
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
 
@@ -21,6 +22,14 @@ class ReadinessResult:
         return all(self.checks.values())
 
 
-def check_readiness() -> ReadinessResult:
-    """Evaluate whether the service can currently handle requests."""
-    return ReadinessResult(checks={})
+def check_readiness(
+    dependency_checks: Mapping[str, Callable[[], bool]] | None = None,
+) -> ReadinessResult:
+    """Evaluate injected dependencies, treating check exceptions as unavailable."""
+    results: dict[str, bool] = {}
+    for name, check in (dependency_checks or {}).items():
+        try:
+            results[name] = check()
+        except Exception:
+            results[name] = False
+    return ReadinessResult(checks=results)

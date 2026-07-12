@@ -1,6 +1,6 @@
 """Liveness and readiness endpoints."""
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Request, Response, status
 
 from turbine_guard.api.schemas.health import LivenessResponse, ReadinessResponse
 from turbine_guard.services.health import check_readiness
@@ -19,14 +19,14 @@ def read_liveness() -> LivenessResponse:
     summary="Readiness probe",
     responses={status.HTTP_503_SERVICE_UNAVAILABLE: {"model": ReadinessResponse}},
 )
-def read_readiness(response: Response) -> ReadinessResponse:
+def read_readiness(request: Request, response: Response) -> ReadinessResponse:
     """Report whether the service's dependencies allow it to handle requests.
 
     Loop 0 has no external dependencies, so the check map is empty and the
     service is always ready. Later loops add real dependency checks, which
     turn this into a 503 when something required is unavailable.
     """
-    result = check_readiness()
+    result = check_readiness(request.app.state.readiness_checks)
     if not result.ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return ReadinessResponse(

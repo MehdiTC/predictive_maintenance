@@ -14,7 +14,7 @@
 
 # Active Loop
 
-None. Loops 0–5 are complete. Loop 6 must not begin without explicit approval.
+None. Loops 0–6 are complete. Loop 7 must not begin without explicit approval.
 
 ---
 
@@ -280,22 +280,24 @@ Do not implement:
 
 ## Loop 6 — PostgreSQL Operational Layer
 
-**Status:** Not started
+**Status:** Complete and validated (2026-07-12) — awaiting review before Loop 7
 
-* [ ] Configure PostgreSQL integration.
-* [ ] Implement SQLAlchemy models.
-* [ ] Configure Alembic.
-* [ ] Implement migrations.
-* [ ] Add asset storage.
-* [ ] Add sensor-reading storage.
-* [ ] Add prediction storage.
-* [ ] Add maintenance-event storage.
-* [ ] Add monitoring and pipeline-run storage as needed.
-* [ ] Enforce `(asset_id, cycle)` uniqueness.
-* [ ] Add indexes and foreign keys.
-* [ ] Add repository abstractions.
-* [ ] Add integration tests.
-* [ ] Validate Loop 6 acceptance criteria.
+* [x] Configure typed PostgreSQL/psycopg settings, pool, connect, and statement timeouts.
+* [x] Implement SQLAlchemy 2 typed models for all seven operational tables.
+* [x] Configure Alembic from typed settings without stored credentials.
+* [x] Implement deterministic initial revision `20260712_0001` and downgrade.
+* [x] Add asset, sensor-reading, prediction, and maintenance-event repositories.
+* [x] Add evaluation, drift-report storage-only, and pipeline-run repositories.
+* [x] Enforce `(asset_id, cycle)` and model/reading prediction uniqueness.
+* [x] Add restrictive foreign keys, checks, JSONB fields, and common-query indexes.
+* [x] Implement caller-owned transactions and rollback-safe sensor batches.
+* [x] Implement exact-retry idempotency and typed conflict behavior.
+* [x] Add injectable database readiness while preserving dependency-free defaults.
+* [x] Add guarded PostgreSQL integration tests and fast unit tests.
+* [x] Add ADR 0005, database documentation/schema diagram, settings, and lifecycle commands.
+* [x] Validate Loop 6 acceptance criteria. (PostgreSQL 17 empty upgrade/current/downgrade/re-upgrade;
+  six guarded integration tests; 253 total tests; Ruff/Mypy/pre-commit pass; Loop 3–5 integrity and
+  MLflow equivalence verified; no Loop 7 routes.)
 
 ---
 

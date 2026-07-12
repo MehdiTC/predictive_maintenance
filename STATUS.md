@@ -3,9 +3,9 @@
 ## Project Status
 
 **Project:** TurbineGuard
-**Current phase:** Loop 5 complete and validated
-**Active loop:** None — awaiting review before Loop 6
-**Overall status:** Optional nested MLflow tracking, complete lineage, pyfunc packaging, SQLite-backed registry, aliases, model cards, prediction equivalence, and idempotency validated; no Loop 6 functionality
+**Current phase:** Loop 6 complete and validated
+**Active loop:** None — awaiting review before Loop 7
+**Overall status:** PostgreSQL operational schema, Alembic migration, typed repositories, transaction boundaries, idempotency, integration tests, and injectable readiness validated; no Loop 7 functionality
 **Last updated:** 2026-07-12
 
 ---
@@ -41,7 +41,7 @@ See `PROJECT_SPEC.md` for the complete design.
 
 ## Current Repository State
 
-Loops 0–5 are complete and validated:
+Loops 0–6 are complete and validated:
 
 ```text
 ├── src/turbine_guard/
@@ -106,14 +106,15 @@ data/
 ```
 
 Loop 4 model artifacts remain under `data/models/cmapss/FD001/`. Optional Loop 5 runtime state uses
-`data/mlflow/` by default and remains gitignored. No PostgreSQL operational layer, Prefect, replay
-service, monitoring, Docker, serving endpoint, or deployment functionality exists — deliberately.
+`data/mlflow/` by default and remains gitignored. PostgreSQL operational persistence is implemented
+under `database/` and Alembic; Prefect, replay, drift calculations, Docker, serving endpoints, and
+deployment remain absent deliberately.
 
 ---
 
 ## Current Loop
 
-Loop 5 is complete and validated. Do not begin Loop 6 without explicit approval.
+Loop 6 is complete and validated. Do not begin Loop 7 without explicit approval.
 
 ---
 
@@ -127,6 +128,44 @@ Loop 5 is complete and validated. Do not begin Loop 6 without explicit approval.
 * [x] Implemented Loop 4 — offline modeling, evaluation, uncertainty, and simulated maintenance
   policy (2026-07-12).
 * [x] Implemented and validated Loop 5 — MLflow tracking and model registry (2026-07-12).
+* [x] Implemented and validated Loop 6 — PostgreSQL operational persistence (2026-07-12).
+
+---
+
+## Loop 6 Implementation Notes
+
+1. The operational store is PostgreSQL through synchronous SQLAlchemy 2.x and psycopg 3. Engine
+   creation is lazy; pool, overflow, recycle, pool/connect/statement timeouts, echo, development
+   URL, and guarded test URL are typed settings separate from MLflow's SQLite backend.
+2. Seven typed ORM tables cover assets, immutable sensor cycles, model-version-pinned predictions,
+   maintenance/failure events, model evaluations, stored drift reports, and pipeline runs. UUID
+   primary keys, timezone-aware timestamps, JSONB extension fields, named checks, restrictive
+   foreign keys, explicit nullability, and common-query indexes are defined.
+3. Alembic revision `20260712_0001` creates the complete schema from an empty database and safely
+   downgrades to base in development. Credentials are absent from `alembic.ini`; autogeneration
+   metadata comes from the typed ORM. Programmatic Alembic runs preserve existing application
+   loggers.
+4. Focused repositories use SQLAlchemy 2 `select()` and caller-provided sessions. They flush but
+   never commit. `session_scope()` owns commit/rollback; sensor batches use a savepoint so conflicts
+   cannot publish partial data.
+5. Sensor identity is `(asset_id, cycle)` and prediction identity is
+   `(sensor_reading_id, model_name, model_version)`. PostgreSQL `ON CONFLICT` plus exact immutable
+   payload comparison returns identical retries and raises typed conflicts for changed data.
+   Maintenance events deduplicate only through an explicit external event ID.
+6. Small frozen commands validate finite numerics, positive cycles, aware timestamps, enums,
+   prediction intervals, ordered windows, and pipeline lifecycle before ORM insertion. Database
+   checks independently backstop core invariants.
+7. Database readiness executes `SELECT 1`, converts connection/timeout failures to unavailable,
+   and is injectable. The API keeps an empty readiness map by default, preserving Loop 0 behavior.
+8. Direct dependencies added: `SQLAlchemy>=2,<3`, `alembic>=1.14,<2`, and
+   `psycopg[binary]>=3.2,<4`. No async stack, SQLite substitute, Docker, testcontainers,
+   orchestration, or repository framework was added.
+9. A dedicated local PostgreSQL 17 development database migrated from empty to head. A separate
+   guarded `turbine_guard_test` database passed all six integration tests. Development downgrade
+   to base and re-upgrade to head both passed; all eight expected relations were restored.
+10. Full validation passed: 253 tests, Ruff formatting/lint, strict Mypy, and all pre-commit hooks.
+    Loop 3 returned `already_built`, Loop 4 returned `already_trained`, and the MLflow champion
+    matched exactly with maximum absolute difference 0.0. No Loop 7 routes exist.
 
 ---
 
@@ -269,8 +308,8 @@ Loop 5 is complete and validated. Do not begin Loop 6 without explicit approval.
 
 ### Implemented so far
 
-Loops 0–5. PostgreSQL persistence, orchestration, serving, online replay, monitoring, and
-deployment remain design-only.
+Loops 0–5 are complete; Loop 6 persistence is implemented pending validation. Orchestration,
+serving, online replay, monitoring calculations, and deployment remain design-only.
 
 ---
 
@@ -298,8 +337,7 @@ deployment remain design-only.
 
 ## Immediate Next Action
 
-Run the requested full quality gates and real FD001 tracked-training/registry inspection commands,
-then interpret and fix only relevant failures. Do not begin Loop 6.
+Review and commit Loop 6. Do not begin Loop 7 without explicit approval.
 
 ---
 
@@ -337,6 +375,26 @@ then interpret and fix only relevant failures. Do not begin Loop 6.
 ---
 
 ## Validation Status
+
+All Loop 6 commands run on 2026-07-12 (macOS, PostgreSQL 17, Python 3.12.13 via uv):
+
+| Check | Status | Detail |
+| --- | --- | --- |
+| `uv sync` | Pass | 167 packages resolved; 162 checked |
+| Ruff format check | Pass | 100 files already formatted |
+| Ruff lint check | Pass | All checks passed |
+| Mypy (strict) | Pass | No issues in 57 source files |
+| Pytest | Pass | 253 passed, including six real PostgreSQL and real FD001/MLflow tests |
+| Pre-commit (all files) | Pass | Ruff format, Ruff lint, and Mypy hooks passed |
+| Empty migration | Pass | `20260712_0001 (head)` created all seven operational tables |
+| Migration reversal | Pass | Downgrade to base and re-upgrade to head restored eight relations incl. Alembic |
+| Repository integration | Pass | Assets, sensors, predictions, events, supporting tables, transactions |
+| Idempotency | Pass | Identical sensor/prediction retries returned existing; conflicts rejected |
+| Transaction safety | Pass | Batch savepoint and session commit/rollback behavior verified |
+| Readiness | Pass | Real PostgreSQL success plus unavailable/timeout paths verified |
+| Loop 3–4 integrity | Pass | `already_built` / `already_trained`; recorded checksums verified |
+| MLflow integrity | Pass | Champion alias output matched local bundle; max difference 0.0 |
+| Loop 7 boundary | Pass | No `/v1`, ingestion, prediction, maintenance, or recent-prediction routes |
 
 All Loop 5 commands run on 2026-07-12 (macOS, Python 3.12.13 via uv):
 
@@ -409,5 +467,5 @@ WSGI bridge. Tests, registered-model loading, prediction equality, and the UI al
 
 ## Next Planned Loop
 
-After Loop 5 is fully validated and separately approved: **Loop 6 — PostgreSQL Operational Layer**.
+After Loop 6 is fully validated and separately approved: **Loop 7 — FastAPI Inference Service**.
 Do not begin it automatically.

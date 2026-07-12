@@ -61,6 +61,39 @@ def test_mlflow_settings_read_environment_variables(monkeypatch: pytest.MonkeyPa
     assert settings.mlflow_promote_champion is False
 
 
+def test_operational_database_settings_are_separate_from_mlflow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database_url = "postgresql+psycopg://user:secret@localhost:5432/turbine_guard_test"
+    monkeypatch.setenv("TURBINE_GUARD_DATABASE_URL", database_url)
+    monkeypatch.setenv("TURBINE_GUARD_DATABASE_POOL_SIZE", "3")
+
+    settings = Settings()
+
+    assert settings.database_url == database_url
+    assert settings.database_pool_size == 3
+    assert settings.mlflow_tracking_uri == "sqlite:///data/mlflow/mlflow.db"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "sqlite:///operational.db",
+        "postgresql://localhost/database",
+        "postgresql+psycopg://localhost",
+        "postgresql+psycopg://[broken",
+        "",
+        "https://db",
+    ],
+)
+def test_invalid_operational_database_url_is_rejected(
+    monkeypatch: pytest.MonkeyPatch, url: str
+) -> None:
+    monkeypatch.setenv("TURBINE_GUARD_DATABASE_URL", url)
+    with pytest.raises(ValidationError):
+        Settings()
+
+
 def test_empty_mlflow_setting_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TURBINE_GUARD_MLFLOW_EXPERIMENT_NAME", "  ")
     with pytest.raises(ValidationError, match="must not be empty"):

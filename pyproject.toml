@@ -5,14 +5,17 @@ description = "Predictive-maintenance ML platform for turbine sensor data, built
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "alembic>=1.14,<2",
     "fastapi>=0.115",
     "joblib>=1.4",
     "mlflow>=3.5,<4",
     "pandas>=2.2",
+    "psycopg[binary]>=3.2,<4",
     "pyarrow>=17",
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
     "scikit-learn>=1.6",
+    "sqlalchemy>=2,<3",
     "uvicorn[standard]>=0.32",
     "xgboost>=2.1",
 ]
@@ -87,4 +90,5 @@ addopts = "-ra --strict-markers --strict-config"
 pythonpath = ["."]
 markers = [
     "real_data: local integration tests that need the acquired FD001 dataset",
+    "postgres: integration tests that require a dedicated PostgreSQL test database",
 ]

@@ -2,7 +2,7 @@
 
 UV ?= uv
 
-.PHONY: help install hooks format format-check lint lint-fix typecheck test check run acquire process features train train-tracked mlflow-ui mlflow-inspect mlflow-verify eda
+.PHONY: help install hooks format format-check lint lint-fix typecheck test check run acquire process features train train-tracked mlflow-ui mlflow-inspect mlflow-verify db-check db-upgrade db-current db-history db-downgrade db-test eda
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -59,6 +59,24 @@ mlflow-inspect: ## Show tracked executions, candidates, registry versions, and a
 
 mlflow-verify: ## Verify champion-alias predictions against the local bundle
 	$(UV) run python scripts/mlflow_models.py verify --alias champion
+
+db-check: ## Check operational PostgreSQL connectivity and migration revision
+	$(UV) run alembic current
+
+db-upgrade: ## Apply operational PostgreSQL migrations
+	$(UV) run alembic upgrade head
+
+db-current: ## Show the operational database revision
+	$(UV) run alembic current
+
+db-history: ## Show migration history
+	$(UV) run alembic history
+
+db-downgrade: ## Downgrade one revision (development only)
+	$(UV) run alembic downgrade -1
+
+db-test: ## Run guarded PostgreSQL integration tests
+	$(UV) run pytest -m postgres tests/integration/test_postgres_operational.py
 
 eda: ## Execute the EDA notebook top to bottom (requires make process)
 	$(UV) run jupyter nbconvert --to notebook --execute --inplace notebooks/01_eda.ipynb

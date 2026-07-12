@@ -1,6 +1,7 @@
 """FastAPI application factory."""
 
 import logging
+from collections.abc import Callable, Mapping
 
 from fastapi import FastAPI
 
@@ -12,7 +13,11 @@ from turbine_guard.logging_config import configure_logging
 logger = logging.getLogger(__name__)
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    readiness_checks: Mapping[str, Callable[[], bool]] | None = None,
+) -> FastAPI:
     """Create the TurbineGuard FastAPI application.
 
     Args:
@@ -28,6 +33,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version=__version__,
     )
     app.state.settings = app_settings
+    app.state.readiness_checks = dict(readiness_checks or {})
     app.include_router(health.router)
 
     logger.info(
