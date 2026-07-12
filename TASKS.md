@@ -14,7 +14,7 @@
 
 # Active Loop
 
-None. Loops 0–2 are complete and awaiting review; Loop 3 must not begin without explicit approval.
+None. Loops 0–3 are complete; Loop 3 is awaiting review. Loop 4 must not begin without explicit approval.
 
 ---
 
@@ -178,24 +178,24 @@ Do not implement:
 
 ---
 
-# Planned Loops
-
 ## Loop 3 — Labels, Splits, and Features
 
-**Status:** Not started
+**Status:** Complete (2026-07-12) — awaiting review before Loop 4
 
-* [ ] Generate RUL labels.
-* [ ] Compare raw and capped RUL targets.
-* [ ] Implement asset-level train, validation, calibration, and replay splits.
-* [ ] Protect official test data.
-* [ ] Implement the shared `FeatureBuilder`.
-* [ ] Add rolling-window features.
-* [ ] Add feature manifests.
-* [ ] Test offline and online feature consistency.
-* [ ] Add explicit future-data leakage tests.
-* [ ] Validate Loop 3 acceptance criteria.
+* [x] Generate RUL labels. (`features/labels.py`: uncapped `rul = T_i − t` always; validation enforces non-negativity, final-cycle 0, exact −1 steps. Official test set: no fabricated per-row labels; 100-row `test_labels.parquet` benchmark with the positional correspondence asserted explicitly.)
+* [x] Compare raw and capped RUL targets. (Both *generatable*: optional `rul_capped = min(rul, cap)` via config/`--rul-cap`, uncapped always preserved; the actual model comparison is a Loop 4 experiment per the spec.)
+* [x] Implement asset-level train, validation, calibration, and replay splits. (`features/splits.py`: seeded `default_rng` permutation + largest-remainder counts → exactly 70/15/5/10 engines on FD001; deterministic, disjoint, complete; manifest with asset IDs, counts, row counts, seed, strategy, checksums.)
+* [x] Protect official test data. (Untouched benchmark; never used for training/selection; test features carry no target columns; Loop 2 inputs checksum-verified before every build.)
+* [x] Implement the shared `FeatureBuilder`. (`features/builder.py`: single stateless implementation for offline batch and single-asset incremental generation; no notebook/serving forks; `IncrementalFeatureState` replays history through the same batch code.)
+* [x] Add rolling-window features. (552 features: current, delta_1, rolling mean/std/min/max/range/slope over trailing windows 5/10/20, EWM mean spans 5/10/20; grouped per asset; configurable families/windows/min_periods; deterministic names and stable order; early-cycle structural nulls preserved, imputation deferred to Loop 4 — ADR 0002.)
+* [x] Add feature manifests. (`split_manifest.json` + `feature_manifest.json`: versions, configuration, ordered feature columns, column groups, input/output SHA-256s, row/asset/null counts, git commit, timestamp, seed; idempotent rebuilds with tamper detection and `--force`.)
+* [x] Test offline and online feature consistency. (Equality at every cycle on fixtures and a real engine; restart reconstruction via `from_history`; out-of-order cycles rejected.)
+* [x] Add explicit future-data leakage tests. (Future-row mutation, future-row append, exhaustive per-cycle perturbation, cross-asset isolation, fit isolation, replay exclusion — unit + real-data variants.)
+* [x] Validate Loop 3 acceptance criteria. (All validation commands pass: 183 tests; real `make features` build + idempotent rerun demonstrated; raw and processed layers unchanged; see `STATUS.md`.)
 
 ---
+
+# Planned Loops
 
 ## Loop 4 — Baseline Modeling and Evaluation
 
@@ -406,10 +406,12 @@ The following are optional and must not be implemented until the complete core p
 
 # Unresolved Issues
 
-Updated at Loop 2 completion (2026-07-12). None block Loop 2 acceptance.
+Updated at Loop 3 completion (2026-07-12). None block Loop 3 acceptance.
 
-1. ~~No initial git commit exists yet.~~ **Resolved:** Loop 0 committed as `d95b528`, Loop 1 as `94ae615`. Loop 2 changes are intentionally uncommitted pending review (same policy).
+1. ~~No initial git commit exists yet.~~ **Resolved:** Loop 0 committed as `d95b528`, Loop 1 as `94ae615`, Loop 2 as `aa27dfc`. Loop 3 changes are intentionally uncommitted pending review (same policy).
 2. **Upstream deprecation warning in the test suite.** Importing `fastapi.testclient` with starlette 1.3.1 emits `StarletteDeprecationWarning: Using httpx with starlette.testclient is deprecated; install httpx2 instead.` The warning originates in FastAPI's own compatibility import, not project code; FastAPI's TestClient currently requires `httpx`. Revisit when FastAPI completes its migration.
 3. **NASA hosting stability.** The legacy `ti.arc.nasa.gov` C-MAPSS URL is dead and `data.nasa.gov` returns 404; acquisition defaults to NASA's S3 mirror (`phm-datasets.s3.amazonaws.com`). If that moves too, set `TURBINE_GUARD_CMAPSS_SOURCE_URL` (or `--url`, including `file://` for a manually downloaded archive). No code change should be needed.
-4. **pandas 3.x.** `uv` resolved pandas 3.0.3 (not 2.x). Loop 2 code targets the pandas 3 API (e.g., `method="spearman"` now requires SciPy, avoided via rank-then-Pearson). Future loops must not assume pandas 2 behavior.
-5. **Positional RUL correspondence.** `RUL_FD001.txt` row *i* ↔ test unit *i + 1* is defined by the dataset readme and cannot be verified from file contents alone; the cross-check is limited to count equality. Loop 3 label generation must encode this assumption explicitly.
+4. **pandas 3.x.** `uv` resolved pandas 3.0.3 (not 2.x). Loops 2–3 code targets the pandas 3 API (e.g., `method="spearman"` now requires SciPy, avoided via rank-then-Pearson). Future loops must not assume pandas 2 behavior.
+5. ~~Positional RUL correspondence must be encoded explicitly in Loop 3.~~ **Resolved:** `build_test_benchmark_labels` asserts the row *i* ↔ test unit *i + 1* correspondence (count equality + contiguous 1..N asset IDs) and `docs/features.md` documents that it cannot be verified from file contents alone.
+6. **Early-cycle structural nulls.** Loop 3 deliberately preserves early-cycle rows with null delta/std values and defers imputation to Loop 4 (ADR 0002). Loop 4 model pipelines must handle these nulls explicitly (impute fitted on train assets only, or use models that tolerate missing values).
+7. **Incremental state holds full history.** `IncrementalFeatureState` retains each asset's complete observation history (cheap at C-MAPSS trajectory lengths ≤ 362, and keeps EWM exactly equal to batch). If a future dataset has much longer histories, a bounded-buffer variant with a running EWM accumulator would be needed (documented in ADR 0002).

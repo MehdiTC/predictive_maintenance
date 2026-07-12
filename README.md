@@ -8,7 +8,7 @@ A production-style predictive-maintenance ML platform for turbine and rotating-e
 
 The project is built in bounded implementation loops (see [PROJECT_SPEC.md](PROJECT_SPEC.md) for the full design, [STATUS.md](STATUS.md) for current state, and [TASKS.md](TASKS.md) for the loop plan).
 
-**Loops 0–2 are complete**: a typed, tested Python 3.12 package with environment-based settings, structured JSON logging, a minimal FastAPI service exposing liveness and readiness endpoints, reproducible checksummed acquisition of the NASA C-MAPSS FD001 dataset, a validated Parquet processing pipeline with a machine-readable data-quality report, and an executable EDA notebook. Labels/splits/features, modeling, and the online system arrive in later loops.
+**Loops 0–3 are complete**: a typed, tested Python 3.12 package with environment-based settings, structured JSON logging, a minimal FastAPI service exposing liveness and readiness endpoints, reproducible checksummed acquisition of the NASA C-MAPSS FD001 dataset, a validated Parquet processing pipeline with a machine-readable data-quality report, an executable EDA notebook, and a leakage-safe feature layer: RUL labels, deterministic asset-level train/validation/calibration/replay splits, one shared `FeatureBuilder` (offline batch and single-asset incremental), and checksummed split/feature manifests. Modeling and the online system arrive in later loops.
 
 ## What the finished system will do
 
@@ -130,6 +130,42 @@ constant/near-constant columns, operating settings, sensor lifecycle trends, dis
 correlation structure, train-vs-test differences, and the implications for Loop 3 feature
 engineering.
 
+## Feature generation (labels, splits, features)
+
+```bash
+make features
+# equivalent to: uv run python scripts/build_features.py
+# options: --data-dir <dir>  --seed <int>  --rul-cap <int>  --force
+```
+
+This turns the validated Parquet into a reproducible, model-ready feature layer:
+
+* **RUL labels** — uncapped `rul = T_i − t` per training row, plus an optional capped `rul_capped`.
+* **Asset-level splits** — deterministic train (70 %), validation (15 %), calibration (5 %), and
+  replay (10 %) partitions, split by engine (never by row); the official test set is untouched.
+* **Leakage-safe features** — one shared `FeatureBuilder` produces trailing-window features
+  (current, previous-cycle delta, rolling mean/std/min/max/range/slope, EWM mean) grouped per
+  asset, using only observations up to the current cycle. The same builder drives future online
+  inference via a single-asset incremental interface; offline and incremental outputs are proven
+  equal.
+
+```text
+data/features/cmapss/FD001/
+├── train.parquet            # model-ready train partition (labels + features)
+├── validation.parquet
+├── calibration.parquet
+├── replay.parquet
+├── test_features.parquet    # official test features (no per-row labels)
+├── test_labels.parquet      # official test RUL benchmark (evaluation only)
+├── split_manifest.json      # asset IDs, counts, seed, strategy
+└── feature_manifest.json    # feature definition, versions, checksums, provenance
+```
+
+Structurally-undefined early-cycle values (e.g. the first-cycle delta) are left null; imputation
+and scaling are deferred to the model pipeline (Loop 4). Re-running is idempotent, tampered outputs
+fail loudly, and `--force` rebuilds. The full contract — feature definitions, rolling semantics,
+leakage protections, and manifest structure — is in [docs/features.md](docs/features.md).
+
 ## Development commands
 
 | Command             | Purpose                                    |
@@ -145,6 +181,7 @@ engineering.
 | `make run`          | Run the API locally with auto-reload       |
 | `make acquire`      | Download the C-MAPSS FD001 dataset         |
 | `make process`      | Validate raw data, write Parquet + report  |
+| `make features`     | Build RUL labels, splits, and features     |
 | `make eda`          | Execute the EDA notebook top to bottom     |
 | `make hooks`        | Install pre-commit hooks                   |
 
@@ -169,15 +206,18 @@ Logs are emitted as single-line JSON objects; fields passed via `extra=` on logg
 │   ├── api/            # FastAPI app factory, routes, response schemas
 │   ├── config/         # typed environment-based settings
 │   ├── data/           # acquisition, manifests, schema, parsing, validation, processing
+│   ├── features/       # RUL labels, asset-level splits, FeatureBuilder, manifests, pipeline
 │   ├── services/       # business logic used by the API layer
 │   └── logging_config.py
 ├── scripts/
 │   ├── download_data.py
-│   └── process_data.py
+│   ├── process_data.py
+│   └── build_features.py
 ├── notebooks/
 │   └── 01_eda.ipynb    # the single primary EDA notebook (make eda)
 ├── docs/
 │   ├── data_contract.md
+│   ├── features.md
 │   └── adr/
 ├── tests/
 │   ├── conftest.py

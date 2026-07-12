@@ -5,6 +5,7 @@ import zipfile
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
+import pandas as pd
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -12,7 +13,8 @@ from fastapi.testclient import TestClient
 from turbine_guard.api.app import create_app
 from turbine_guard.config.settings import Environment, Settings
 from turbine_guard.data.acquisition import AcquisitionConfig, acquire
-from turbine_guard.data.schema import SENSOR_COLUMNS
+from turbine_guard.data.processing import ProcessingConfig, process
+from turbine_guard.data.schema import SENSOR_COLUMNS, TRAJECTORY_COLUMNS, TRAJECTORY_DTYPES
 
 
 def make_trajectory_line(asset_id: int, cycle: int) -> str:
@@ -42,6 +44,62 @@ def make_trajectory_text(trajectory_lengths: dict[int, int]) -> str:
         for cycle in range(1, length + 1)
     ]
     return "\n".join(lines) + "\n"
+
+
+def make_trajectory_frame(trajectory_lengths: dict[int, int]) -> pd.DataFrame:
+    """Canonical typed trajectory frame for offline label/feature unit tests.
+
+    Uses the same deterministic per-cell values as :func:`make_trajectory_line`
+    so constant and near-constant sensors are represented, then applies the
+    canonical dtypes. No files or acquisition are involved.
+    """
+    rows = [
+        make_trajectory_line(asset_id, cycle).split()
+        for asset_id, length in trajectory_lengths.items()
+        for cycle in range(1, length + 1)
+    ]
+    frame = pd.DataFrame(rows, columns=list(TRAJECTORY_COLUMNS), dtype="object")
+    return frame.astype(TRAJECTORY_DTYPES)
+
+
+def _feature_fixture_contents() -> dict[str, str]:
+    """20 train assets (lengths 21..40) and 20 truncated test assets (11..30).
+
+    Twenty training assets partition cleanly under the default 70/15/5/10 split
+    into 14/3/1/2 assets, which keeps split assertions exact.
+    """
+    train_lengths = {asset: 20 + asset for asset in range(1, 21)}
+    test_lengths = {asset: 10 + asset for asset in range(1, 21)}
+    rul_values = "\n".join(str(40 + asset) for asset in range(1, 21)) + "\n"
+    return {
+        "train_FD001.txt": make_trajectory_text(train_lengths),
+        "test_FD001.txt": make_trajectory_text(test_lengths),
+        "RUL_FD001.txt": rul_values,
+    }
+
+
+@pytest.fixture
+def feature_fixture_contents() -> dict[str, str]:
+    """Schema-complete FD001 stand-ins sized for asset-level split tests."""
+    return _feature_fixture_contents()
+
+
+@pytest.fixture
+def processed_data_dir(
+    tmp_path: Path,
+    cmapss_archive_factory: Callable[..., Path],
+    feature_fixture_contents: dict[str, str],
+) -> Path:
+    """A data directory with the split-sized FD001 fixture acquired and processed.
+
+    Produces the on-disk Loop 2 Parquet outputs and processing report that the
+    feature pipeline and CLI consume, without the real dataset or the network.
+    """
+    archive = cmapss_archive_factory(contents=feature_fixture_contents)
+    data_dir = tmp_path / "data"
+    acquire(AcquisitionConfig(data_dir=data_dir, source_url=archive.as_uri()))
+    process(ProcessingConfig(data_dir=data_dir, validate_canonical=False))
+    return data_dir
 
 
 @pytest.fixture

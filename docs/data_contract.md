@@ -164,5 +164,11 @@ The EDA notebook consumes only the processed Parquet outputs, never the raw text
 
 Loop 2 ends at *trustworthy, typed, validated Parquet plus an EDA notebook*. It deliberately does
 **not** produce: per-row RUL labels, capped RUL, train/validation/calibration/replay splits,
-rolling-window features, feature manifests, or model-oriented scaling. Those belong to Loop 3,
-which consumes the Parquet outputs defined here.
+rolling-window features, feature manifests, or model-oriented scaling.
+
+Those belong to **Loop 3**, which consumes the Parquet outputs defined here and produces the
+model-ready feature layer under `data/features/cmapss/FD001/`. The full feature/label/split
+contract — the RUL formula, asset-level splits, feature definitions, rolling semantics,
+early-cycle and missing-value policy, leakage protections, and the split/feature manifests — is
+documented in [features.md](features.md). Loop 3 still stops before any modeling (no training,
+scaling, feature selection, evaluation, or imputation).
