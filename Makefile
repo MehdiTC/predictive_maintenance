@@ -2,7 +2,7 @@
 
 UV ?= uv
 
-.PHONY: help install hooks format format-check lint lint-fix typecheck test check run acquire process features train train-tracked mlflow-ui mlflow-inspect mlflow-verify db-check db-upgrade db-current db-history db-downgrade db-test eda
+.PHONY: help install hooks format format-check lint lint-fix typecheck test check run acquire process features train train-tracked mlflow-ui mlflow-inspect mlflow-verify db-check db-upgrade db-current db-history db-downgrade db-test monitor lifecycle-status eda
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -77,6 +77,12 @@ db-downgrade: ## Downgrade one revision (development only)
 
 db-test: ## Run guarded PostgreSQL integration tests
 	$(UV) run pytest -m postgres tests/integration/test_postgres_operational.py
+
+monitor: ## Run one Loop 9 production monitoring window
+	$(UV) run python scripts/model_lifecycle.py monitor
+
+lifecycle-status: ## Inspect monitoring/retraining/promotion pipeline runs
+	$(UV) run python scripts/model_lifecycle.py status
 
 eda: ## Execute the EDA notebook top to bottom (requires make process)
 	$(UV) run jupyter nbconvert --to notebook --execute --inplace notebooks/01_eda.ipynb

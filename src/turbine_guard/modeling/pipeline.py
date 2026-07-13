@@ -1,5 +1,6 @@
 """End-to-end offline Loop 4 training, selection, calibration, and evaluation."""
 
+import copy
 import logging
 import time
 from dataclasses import dataclass
@@ -137,6 +138,53 @@ class _CandidateRun:
     model_bytes: bytes
     validation_frame: pd.DataFrame
     report: dict[str, Any]
+
+
+def fit_candidate_bundle(
+    *,
+    training_frame: pd.DataFrame,
+    feature_columns: tuple[str, ...],
+    candidate: CandidateConfig,
+    target: TargetConfig,
+    config: TrainingConfig,
+    conformal: SplitConformalCalibrator,
+    metadata: dict[str, Any],
+) -> ModelBundle:
+    """Fit one established Loop 4 candidate on an explicitly supplied safe training frame.
+
+    Loop 9 owns asset eligibility and role isolation; this function remains the
+    single point-model/preprocessing/bundle construction path.
+    """
+    features = model_matrix(training_frame, feature_columns)
+    truth = target_values(training_frame, target.cap)
+    pipeline = build_pipeline(candidate, config)
+    pipeline.fit(features, truth)
+    return ModelBundle(
+        pipeline=pipeline,
+        feature_columns=feature_columns,
+        target_name=target.name,
+        target_cap=target.cap,
+        critical_horizon=config.alerts.critical_horizon,
+        warning_horizon=config.alerts.warning_horizon,
+        conformal=copy.deepcopy(conformal),
+        metadata=metadata,
+    )
+
+
+def prediction_latency_ms(
+    bundle: ModelBundle, features: pd.DataFrame, *, repeats: int = 5
+) -> float:
+    """Measure median per-row bundle inference latency using Loop 4 semantics."""
+    if repeats < 1 or features.empty:
+        raise ValueError("Latency measurement requires data and at least one repeat.")
+    batch = features.iloc[: min(512, len(features))]
+    bundle.predict(batch)
+    timings: list[float] = []
+    for _ in range(repeats):
+        started = time.perf_counter()
+        bundle.predict(batch)
+        timings.append(1000.0 * (time.perf_counter() - started) / len(batch))
+    return float(np.median(timings))
 
 
 def train_models(config: TrainingConfig) -> TrainingResult:

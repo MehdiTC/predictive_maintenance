@@ -7,9 +7,8 @@ from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
-from importlib.metadata import version
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import mlflow
 import numpy as np
@@ -30,11 +29,7 @@ from turbine_guard.modeling.data import (
 from turbine_guard.modeling.pipeline import ModelBundle
 from turbine_guard.tracking.artifacts import TrackingArtifacts, load_tracking_artifacts
 from turbine_guard.tracking.config import MlflowConfig
-from turbine_guard.tracking.model import (
-    POINT_COLUMN,
-    ChampionPyFuncModel,
-    champion_signature,
-)
+from turbine_guard.tracking.model import POINT_COLUMN, log_bundle_model
 
 logger = logging.getLogger(__name__)
 
@@ -446,40 +441,19 @@ class MlflowTracker:
     def _log_champion_model(
         self, artifacts: TrackingArtifacts, input_example: pd.DataFrame
     ) -> ModelInfo:
-        source_root = Path(__file__).resolve().parents[3] / "src"
-        requirements = [
-            f"mlflow=={version('mlflow')}",
-            f"numpy=={version('numpy')}",
-            f"pandas=={version('pandas')}",
-            f"scikit-learn=={version('scikit-learn')}",
-            f"xgboost=={version('xgboost')}",
-            f"joblib=={version('joblib')}",
-        ]
-        return cast(
-            ModelInfo,
-            mlflow.pyfunc.log_model(
-                name="champion_model",
-                python_model=ChampionPyFuncModel(
-                    tuple(artifacts.champion_metadata["ordered_feature_list"]),
-                    artifacts.champion_sha256,
-                ),
-                artifacts={"champion_bundle": str(artifacts.champion_path)},
-                code_paths=[str(source_root)],
-                signature=champion_signature(
-                    tuple(artifacts.champion_metadata["ordered_feature_list"])
-                ),
-                input_example=input_example,
-                pip_requirements=requirements,
-                metadata={
-                    "candidate_id": artifacts.training_manifest.selected_candidate_id,
-                    "target_definition": artifacts.champion_metadata["target_definition"],
-                    "feature_manifest_sha256": (
-                        artifacts.training_manifest.feature_manifest_sha256
-                    ),
-                    "bundle_sha256": artifacts.champion_sha256,
-                    "extra_column_policy": "ignored_by_mlflow_signature_enforcement",
-                },
-            ),
+        return log_bundle_model(
+            name="champion_model",
+            bundle_path=artifacts.champion_path,
+            bundle_sha256=artifacts.champion_sha256,
+            feature_columns=tuple(artifacts.champion_metadata["ordered_feature_list"]),
+            input_example=input_example,
+            metadata={
+                "candidate_id": artifacts.training_manifest.selected_candidate_id,
+                "target_definition": artifacts.champion_metadata["target_definition"],
+                "feature_manifest_sha256": artifacts.training_manifest.feature_manifest_sha256,
+                "bundle_sha256": artifacts.champion_sha256,
+                "extra_column_policy": "ignored_by_mlflow_signature_enforcement",
+            },
         )
 
     def _model_input(

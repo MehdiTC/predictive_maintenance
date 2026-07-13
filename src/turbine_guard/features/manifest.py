@@ -17,6 +17,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict
 
 from turbine_guard.data.manifest import FileRecord
+from turbine_guard.features.config import FeatureConfig
 
 
 class SplitManifest(BaseModel):
@@ -105,6 +106,19 @@ class FeatureManifest(BaseModel):
     outputs: tuple[FeatureOutputRecord, ...]
     row_counts_by_split: dict[str, int]
     asset_counts_by_split: dict[str, int]
+
+
+def feature_config_from_manifest(manifest: FeatureManifest) -> FeatureConfig:
+    """Reconstruct the single shared feature definition from persisted lineage."""
+    record = manifest.feature_config
+    return FeatureConfig(
+        feature_version=record.feature_version,
+        source_columns=record.source_columns,
+        families=record.families,
+        windows=record.windows,
+        ewm_spans=record.ewm_spans,
+        min_periods=record.min_periods,
+    )
 
 
 def load_split_manifest(path: Path) -> SplitManifest:

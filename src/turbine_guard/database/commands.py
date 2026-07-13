@@ -8,8 +8,10 @@ from typing import Any
 
 from turbine_guard.database.enums import (
     AssetStatus,
+    DataQualityStatus,
     DriftStatus,
     EvaluationScope,
+    LifecycleAssetRole,
     MaintenanceEventType,
     PipelineRunStatus,
     PipelineRunType,
@@ -235,6 +237,36 @@ class NewDriftReport:
 
 
 @dataclass(frozen=True)
+class NewDataQualityReport:
+    pipeline_run_id: uuid.UUID
+    model_name: str
+    model_version: str
+    feature_version: str
+    window_start: datetime
+    window_end: datetime
+    status: DataQualityStatus
+    record_count: int
+    asset_count: int
+    failure_count: int
+    details: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        for value, name in (
+            (self.model_name, "model_name"),
+            (self.model_version, "model_version"),
+            (self.feature_version, "feature_version"),
+        ):
+            _required(value, name)
+        _aware(self.window_start, "window_start")
+        _aware(self.window_end, "window_end")
+        if self.window_start > self.window_end:
+            raise ValueError("Data-quality window must be ordered.")
+        if min(self.record_count, self.asset_count, self.failure_count) < 0:
+            raise ValueError("Data-quality counts must be non-negative.")
+        _enum_member(self.status, DataQualityStatus, "status")
+
+
+@dataclass(frozen=True)
 class NewReplayRun:
     dataset_name: str
     dataset_subset: str
@@ -292,6 +324,8 @@ class NewPipelineRun:
     status: PipelineRunStatus
     started_at: datetime
     trigger: str
+    idempotency_key: str | None = None
+    phase: str | None = None
     finished_at: datetime | None = None
     git_sha: str | None = None
     model_version: str | None = None
@@ -303,6 +337,12 @@ class NewPipelineRun:
     def __post_init__(self) -> None:
         _aware(self.started_at, "started_at")
         _required(self.trigger, "trigger")
+        if self.idempotency_key is not None:
+            _required(self.idempotency_key, "idempotency_key")
+            if len(self.idempotency_key) != 64:
+                raise ValueError("idempotency_key must be a SHA-256 hex digest.")
+        if self.phase is not None:
+            _required(self.phase, "phase")
         terminal = {
             PipelineRunStatus.SUCCEEDED,
             PipelineRunStatus.FAILED,
@@ -318,3 +358,40 @@ class NewPipelineRun:
             raise ValueError("Failed pipeline runs require error_message.")
         _enum_member(self.run_type, PipelineRunType, "run_type")
         _enum_member(self.status, PipelineRunStatus, "status")
+
+
+@dataclass(frozen=True)
+class NewLifecycleAssetAssignment:
+    pipeline_run_id: uuid.UUID
+    asset_id: uuid.UUID
+    role: LifecycleAssetRole
+    row_count: int
+    source_asset_id: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.row_count <= 0:
+            raise ValueError("Lifecycle asset assignments require a positive row count.")
+        _enum_member(self.role, LifecycleAssetRole, "role")
+
+
+@dataclass(frozen=True)
+class NewLifecycleEvent:
+    event_key: str
+    event_type: str
+    phase: str
+    model_name: str
+    actor: str
+    pipeline_run_id: uuid.UUID | None = None
+    from_version: str | None = None
+    to_version: str | None = None
+    details: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        for value, name in (
+            (self.event_key, "event_key"),
+            (self.event_type, "event_type"),
+            (self.phase, "phase"),
+            (self.model_name, "model_name"),
+            (self.actor, "actor"),
+        ):
+            _required(value, name)

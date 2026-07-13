@@ -14,7 +14,7 @@
 
 # Active Loop
 
-None. Loops 0–8 are complete. Loop 9 must not begin without explicit approval.
+None. Loops 0–9 are complete and validated. Loop 10 has not started.
 
 ---
 
@@ -368,23 +368,33 @@ Do not implement:
 
 ## Loop 9 — Monitoring and Retraining
 
-**Status:** Not started
+**Status:** Complete and validated (2026-07-13) — awaiting review before Loop 10
 
-* [ ] Implement data-quality monitoring.
-* [ ] Implement feature drift reports.
-* [ ] Add PSI.
-* [ ] Add Wasserstein distance.
-* [ ] Monitor missingness and distribution changes.
-* [ ] Calculate delayed online model metrics.
-* [ ] Define retraining triggers.
-* [ ] Implement the retraining workflow.
-* [ ] Implement candidate evaluation gates.
-* [ ] Implement champion promotion.
-* [ ] Make promotion auditable.
-* [ ] Test induced drift.
-* [ ] Test candidate rejection.
-* [ ] Test candidate promotion.
-* [ ] Validate Loop 9 acceptance criteria.
+* [x] Implement persisted data-quality monitoring. (Counts, duplicates, missing/non-finite and
+  out-of-range values, cycle gaps/order, feature-history sufficiency, sensor availability.)
+* [x] Implement champion/feature-version-bound training-only reference distributions.
+* [x] Implement feature drift reports. (PSI, quantile-integral Wasserstein distance, missingness,
+  normalized mean, and normalized standard-deviation shifts over all 552 features.)
+* [x] Calculate delayed online model metrics by reusing Loop 4 regression, alert/lead-time, and
+  conformal metrics over Loop 8 immutable outcomes.
+* [x] Define configurable `no_action`, `monitor`, `retrain`, and `blocked` decisions, including
+  manual force that cannot bypass data-quality, minimum-data, or holdout safety.
+* [x] Implement leakage-safe retraining data assembly. (Original training role plus eligible
+  completed operational assets; asset-level disjoint additions/holdout; protected roles closed.)
+* [x] Retrain the champion family/target with the existing Loop 4 fit path; add no model family.
+* [x] Compare candidate, non-refitted champion, and naive baseline on one fingerprinted holdout.
+* [x] Implement every blocking promotion gate, MLflow reload equivalence, candidate/challenger
+  aliases, approval-by-default promotion, rejection, and numbered-version rollback.
+* [x] Make lifecycle runs auditable and resumable. (`pipeline_runs` phase/idempotency metadata,
+  asset assignments, append-only events, checksum-verified artifacts, lifecycle-keyed MLflow.)
+* [x] Reuse and harden Loop 7 model-cache refresh so failed replacement loads preserve the cache.
+* [x] Add the monitoring/lifecycle management CLI and operator documentation/ADR 0008.
+* [x] Test healthy/unhealthy quality, no/induced drift, degraded performance, all decisions,
+  data isolation, too-few-assets blocking, identical holdout, every gate, registration, rejection,
+  approved promotion, aliases, rollback, refresh failure, recovery, and idempotent reruns.
+* [x] Validate Loop 9 acceptance criteria. (398 tests with real PostgreSQL and local MLflow;
+  migration `20260713_0003`; live monitor/idempotency, blocked-safe force, champion equivalence,
+  and safe refresh demonstrations; no dependency or Loop 10 functionality added.)
 
 ---
 

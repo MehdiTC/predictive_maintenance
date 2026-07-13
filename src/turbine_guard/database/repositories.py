@@ -12,7 +12,10 @@ from sqlalchemy.orm import Session
 from turbine_guard.data.schema import OPERATING_SETTING_COLUMNS, SENSOR_COLUMNS
 from turbine_guard.database.commands import (
     NewAsset,
+    NewDataQualityReport,
     NewDriftReport,
+    NewLifecycleAssetAssignment,
+    NewLifecycleEvent,
     NewMaintenanceEvent,
     NewModelEvaluation,
     NewPipelineRun,
@@ -35,7 +38,10 @@ from turbine_guard.database.errors import (
 )
 from turbine_guard.database.models import (
     Asset,
+    DataQualityReport,
     DriftReport,
+    LifecycleAssetAssignment,
+    LifecycleEvent,
     MaintenanceEvent,
     ModelEvaluation,
     PipelineRun,
@@ -378,6 +384,29 @@ class DriftReportRepository:
         )
 
 
+class DataQualityReportRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def create(self, command: NewDataQualityReport) -> DataQualityReport:
+        report = DataQualityReport(**asdict(command))
+        self.session.add(report)
+        self.session.flush()
+        return report
+
+    def for_model(self, model_name: str, model_version: str) -> list[DataQualityReport]:
+        return list(
+            self.session.scalars(
+                select(DataQualityReport)
+                .where(
+                    DataQualityReport.model_name == model_name,
+                    DataQualityReport.model_version == model_version,
+                )
+                .order_by(desc(DataQualityReport.window_end))
+            )
+        )
+
+
 class ReplayRunRepository:
     """Durable replay progress rows with row-level locking for advancement."""
 
@@ -499,6 +528,32 @@ class PipelineRunRepository:
     def get(self, run_id: uuid.UUID) -> PipelineRun | None:
         return self.session.get(PipelineRun, run_id)
 
+    def get_for_update(self, run_id: uuid.UUID) -> PipelineRun | None:
+        return self.session.scalar(
+            select(PipelineRun).where(PipelineRun.id == run_id).with_for_update()
+        )
+
+    def get_by_idempotency_key(self, key: str) -> PipelineRun | None:
+        return self.session.scalar(select(PipelineRun).where(PipelineRun.idempotency_key == key))
+
+    def checkpoint(
+        self,
+        run: PipelineRun,
+        *,
+        phase: str,
+        status: PipelineRunStatus | None = None,
+        metadata: dict[str, object] | None = None,
+    ) -> PipelineRun:
+        if not phase.strip():
+            raise ValueError("Pipeline phase must not be empty.")
+        run.phase = phase
+        if status is not None:
+            run.status = status
+        if metadata is not None:
+            run.run_metadata = metadata
+        self.session.flush()
+        return run
+
     def finish(
         self,
         run: PipelineRun,
@@ -528,6 +583,51 @@ class PipelineRunRepository:
         return list(
             self.session.scalars(
                 select(PipelineRun).order_by(desc(PipelineRun.started_at)).limit(limit)
+            )
+        )
+
+
+class LifecycleAssetAssignmentRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def create(self, command: NewLifecycleAssetAssignment) -> LifecycleAssetAssignment:
+        assignment = LifecycleAssetAssignment(**asdict(command))
+        self.session.add(assignment)
+        self.session.flush()
+        return assignment
+
+    def for_run(self, run_id: uuid.UUID) -> list[LifecycleAssetAssignment]:
+        return list(
+            self.session.scalars(
+                select(LifecycleAssetAssignment)
+                .where(LifecycleAssetAssignment.pipeline_run_id == run_id)
+                .order_by(LifecycleAssetAssignment.role, LifecycleAssetAssignment.source_asset_id)
+            )
+        )
+
+
+class LifecycleEventRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def create(self, command: NewLifecycleEvent) -> LifecycleEvent:
+        existing = self.session.scalar(
+            select(LifecycleEvent).where(LifecycleEvent.event_key == command.event_key)
+        )
+        if existing is not None:
+            return existing
+        event = LifecycleEvent(**asdict(command))
+        self.session.add(event)
+        self.session.flush()
+        return event
+
+    def for_run(self, run_id: uuid.UUID) -> list[LifecycleEvent]:
+        return list(
+            self.session.scalars(
+                select(LifecycleEvent)
+                .where(LifecycleEvent.pipeline_run_id == run_id)
+                .order_by(LifecycleEvent.created_at)
             )
         )
 

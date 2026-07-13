@@ -26,8 +26,10 @@ from turbine_guard.data.schema import OPERATING_SETTING_COLUMNS, SENSOR_COLUMNS
 from turbine_guard.database.base import Base, CreatedAtMixin
 from turbine_guard.database.enums import (
     AssetStatus,
+    DataQualityStatus,
     DriftStatus,
     EvaluationScope,
+    LifecycleAssetRole,
     MaintenanceEventType,
     PipelineRunStatus,
     PipelineRunType,
@@ -291,6 +293,38 @@ class DriftReport(CreatedAtMixin, Base):
     )
 
 
+class DataQualityReport(CreatedAtMixin, Base):
+    """Persisted quality summary for one immutable monitoring window."""
+
+    __tablename__ = "data_quality_reports"
+    __table_args__ = (
+        CheckConstraint("window_start <= window_end", name="ordered_window"),
+        CheckConstraint("record_count >= 0", name="non_negative_record_count"),
+        CheckConstraint("asset_count >= 0", name="non_negative_asset_count"),
+        CheckConstraint("failure_count >= 0", name="non_negative_failure_count"),
+        Index("ix_data_quality_reports_model_window", "model_name", "model_version", "window_end"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    pipeline_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("pipeline_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    model_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    model_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    feature_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[DataQualityStatus] = mapped_column(
+        _enum(DataQualityStatus, "data_quality_status"), nullable=False
+    )
+    record_count: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    asset_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    failure_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    details: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
+
+
 class ReplayRun(CreatedAtMixin, Base):
     """Durable progress and phase state for one held-out trajectory replay.
 
@@ -442,6 +476,8 @@ class PipelineRun(CreatedAtMixin, Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     trigger: Mapped[str] = mapped_column(String(100), nullable=False)
+    idempotency_key: Mapped[str | None] = mapped_column(String(64), unique=True)
+    phase: Mapped[str | None] = mapped_column(String(100))
     git_sha: Mapped[str | None] = mapped_column(String(64))
     model_version: Mapped[str | None] = mapped_column(String(100))
     input_manifest_checksum: Mapped[str | None] = mapped_column(String(64))
@@ -449,4 +485,55 @@ class PipelineRun(CreatedAtMixin, Base):
     error_message: Mapped[str | None] = mapped_column(Text)
     run_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata", JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class LifecycleAssetAssignment(CreatedAtMixin, Base):
+    """Leakage-auditable asset role within one retraining lifecycle."""
+
+    __tablename__ = "lifecycle_asset_assignments"
+    __table_args__ = (
+        UniqueConstraint("pipeline_run_id", "asset_id", name="uq_lifecycle_run_asset"),
+        Index("ix_lifecycle_assets_run_role", "pipeline_run_id", "role"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    pipeline_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("pipeline_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    asset_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assets.id", ondelete="RESTRICT"), nullable=False
+    )
+    role: Mapped[LifecycleAssetRole] = mapped_column(
+        _enum(LifecycleAssetRole, "lifecycle_asset_role"), nullable=False
+    )
+    source_asset_id: Mapped[str | None] = mapped_column(String(255))
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class LifecycleEvent(CreatedAtMixin, Base):
+    """Append-only audit event for candidate, alias, approval, and rollback changes."""
+
+    __tablename__ = "lifecycle_events"
+    __table_args__ = (
+        Index("ix_lifecycle_events_run_created", "pipeline_run_id", "created_at"),
+        Index("ix_lifecycle_events_model_created", "model_name", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    pipeline_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("pipeline_runs.id", ondelete="RESTRICT")
+    )
+    event_key: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    phase: Mapped[str] = mapped_column(String(100), nullable=False)
+    model_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    from_version: Mapped[str | None] = mapped_column(String(100))
+    to_version: Mapped[str | None] = mapped_column(String(100))
+    actor: Mapped[str] = mapped_column(String(255), nullable=False)
+    details: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
     )

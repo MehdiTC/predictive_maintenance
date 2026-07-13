@@ -3,15 +3,15 @@
 ## Project Status
 
 **Project:** TurbineGuard
-**Current phase:** Loop 8 complete and validated
-**Active loop:** None — awaiting review before Loop 9
-**Overall status:** Held-out replay through the real Loop 7 API, durable lease-protected replay
-state, idempotent failure events, realized-label backfill, and per-model-version delayed
-evaluation are implemented, documented (ADR 0007, docs/replay.md), and validated: all quality
-gates, 364 tests (including six real-PostgreSQL replay integration tests and a real-FD001 champion
-replay), the `20260713_0002` migration on the development database, and a live 201-cycle replay of
-held-out engine 9 with failure emission, label backfill, per-asset and aggregate evaluation,
-idempotent restart, and Loop 3–7 integrity all passed. No Loop 9 functionality exists.
+**Current phase:** Loop 9 complete and validated
+**Active loop:** None — awaiting review before Loop 10
+**Overall status:** Production lifecycle monitoring, structured retraining decisions, leakage-safe
+candidate fitting, same-holdout champion comparison, blocking promotion gates, explicit approval,
+safe MLflow alias promotion/rollback, serving-cache refresh, and phase-based recovery are
+implemented and documented (ADR 0008, `docs/monitoring.md`). All requested quality gates and 398
+tests pass with real PostgreSQL and local MLflow enabled; migration `20260713_0003` is at head.
+The live champion remained v1 because the available one newly labeled asset is correctly below the
+five-asset/two-holdout safety thresholds. No Loop 10 functionality exists.
 **Last updated:** 2026-07-13
 
 ---
@@ -47,7 +47,7 @@ See `PROJECT_SPEC.md` for the complete design.
 
 ## Current Repository State
 
-Loops 0–7 are complete and validated; Loop 8 is implemented pending validation:
+Loops 0–9 are complete and validated:
 
 ```text
 ├── src/turbine_guard/
@@ -74,6 +74,8 @@ Loops 0–7 are complete and validated; Loop 8 is implemented pending validation
 │   ├── tracking/               # Loop 5 MLflow adapter, pyfunc, registry, aliases, CLI
 │   ├── replay/                 # Loop 8: verified source, HTTP client, lease-protected state,
 │   │                           #   orchestrator, realized labels, delayed evaluation, CLI
+│   ├── monitoring/             # Loop 9: reports, decisions, safe data split, candidate,
+│   │                           #   gates, durable lifecycle service, CLI
 │   ├── services/health.py
 │   └── logging_config.py       # structured JSON logging
 ├── scripts/download_data.py     # thin wrappers over turbine_guard CLIs
@@ -81,6 +83,7 @@ Loops 0–7 are complete and validated; Loop 8 is implemented pending validation
 ├── scripts/build_features.py
 ├── scripts/train_models.py
 ├── scripts/mlflow_models.py
+├── scripts/model_lifecycle.py
 ├── notebooks/01_eda.ipynb       # the single primary EDA notebook, executed
 ├── docs/data_contract.md        # raw structure, canonical schema, validation rules, outputs
 ├── docs/features.md             # Loop 3 contract: labels, splits, features, manifests
@@ -115,15 +118,15 @@ data/
 
 Loop 4 model artifacts remain under `data/models/cmapss/FD001/`. Optional Loop 5 runtime state uses
 `data/mlflow/` by default and remains gitignored. PostgreSQL operational persistence is implemented
-under `database/` and Alembic (revisions `20260712_0001` and `20260713_0002`). Loop 7 serves the
-online API; Loop 8 adds replay and delayed feedback. Prefect, drift calculations, retraining,
-promotion, Docker, and deployment remain absent deliberately.
+under `database/` and Alembic (through revision `20260713_0003`). Loop 7 serves the online API,
+Loop 8 adds replay/delayed feedback, and Loop 9 adds lifecycle monitoring and promotion. Docker,
+deployment, distributed orchestration, and other Loop 10 functionality remain absent deliberately.
 
 ---
 
 ## Current Loop
 
-Loop 8 is complete and validated. Do not begin Loop 9 without explicit approval.
+Loop 9 is complete and validated. Do not begin Loop 10 without explicit approval.
 
 ---
 
@@ -141,6 +144,56 @@ Loop 8 is complete and validated. Do not begin Loop 9 without explicit approval.
 * [x] Implemented and validated Loop 7 — FastAPI online inference service (2026-07-13).
 * [x] Implemented and validated Loop 8 — continuous sensor replay and delayed feedback
   (2026-07-13).
+* [x] Implemented and validated Loop 9 — monitoring, retraining, candidate evaluation, and model
+  promotion (2026-07-13).
+
+---
+
+## Loop 9 Implementation Notes
+
+1. **Monitoring reference.** The exact champion's checksummed Loop 3 training role is the only
+   reference. A stable, versioned artifact stores moments, missingness, decile proportions, and
+   101 quantiles for all 552 features and is tagged/logged against the exact MLflow model version.
+   Validation, calibration, replay, and official test data are excluded.
+2. **Reports.** Data quality checks accepted-reading structure and availability; drift calculates
+   PSI, quantile-integral Wasserstein distance, missingness shift, standardized mean shift, and
+   standardized standard-deviation shift. Delayed performance reuses Loop 4 regression,
+   alert/episode/lead-time, and conformal metrics over Loop 8 outcomes. Reports persist in the
+   existing `drift_reports`/`model_evaluations` tables and new `data_quality_reports` table.
+3. **Decisions.** Typed thresholds produce exactly `no_action`, `monitor`, `retrain`, or `blocked`.
+   Signals include minimum labeled assets/rows, interval, MAE/RMSE loss, critical recall, false
+   alarms, coverage, feature drift, data-quality failure, and manual force. Force never bypasses
+   data or holdout safety.
+4. **Retraining isolation.** The point-model base is original training data plus successfully used
+   operational additions. Newly completed labeled assets are deterministically split by asset into
+   fit additions and a promotion holdout. Protected validation/calibration and official NASA test
+   data are never opened; an asset cannot appear in both new roles.
+5. **Candidate evaluation.** The champion's existing Loop 4 family, parameters, target, features,
+   and horizons are recovered; no new family/search was added. Candidate fitting reuses Loop 4.
+   Candidate, the frozen champion, and the Loop 4 median baseline share one fingerprinted holdout.
+   Comparison includes accuracy, NASA, alert/lead-time, uncertainty, latency, and artifact size.
+6. **Gates and registry.** Twelve explicit blocking gates cover quality/data/artifact validity,
+   naive-baseline improvement, bounded RMSE/NASA loss, recall, false alarms, coverage, latency,
+   size, and MLflow reload equivalence. Registration orders `candidate` then verified `challenger`;
+   approval is required by default before old champion → `archived` and candidate → `champion`.
+   Rejection preserves champion; rollback validates a numbered version and archives the displaced
+   version.
+7. **Recovery and audit.** Alembic `20260713_0003` adds report, assignment, and event tables plus
+   pipeline idempotency/phase timestamps. Artifacts and comparisons are checksum-verified, MLflow
+   runs/versions are lifecycle-keyed, alias operations are re-entrant, and events are append-only
+   and idempotent. Interrupted phases resume without duplicating reports, versions, or history.
+8. **Serving refresh.** Loop 7 now loads/validates the replacement before swapping the cached model;
+   failure preserves the loaded object. Promotion/rollback persist refresh success or error.
+9. **CLI/dependencies.** `scripts/model_lifecycle.py` supports monitor, status, force/evaluate,
+   promotion dry-run/approval/rejection, rollback, and refresh. No dependency was added.
+10. **Live outcome.** The 2026-07-01–07-15 window had 221 accepted readings across two assets and
+    passed data quality. Against training-only reference v1, 309/552 features crossed detected
+    drift; delayed champion-v1 metrics over 201 labeled rows were MAE 26.12, RMSE 32.49, NASA
+    7144.70, critical recall 0.645, false alarms 0/1000, coverage 0.478, width 37.88. The trigger
+    was correctly `blocked`: only one new labeled asset/201 rows and no safe two-asset holdout.
+    Repeating the exact window returned the same run UUID. Manual force remained blocked; no
+    candidate/version/alias was created, and production `champion`, `candidate`, and `challenger`
+    remained v1.
 
 ---
 
@@ -447,8 +500,8 @@ Loop 8 is complete and validated. Do not begin Loop 9 without explicit approval.
 
 ### Implemented so far
 
-Loops 0–6 are complete; Loop 7 serving is implemented pending validation. Orchestration, online
-replay, delayed feedback, monitoring calculations, and deployment remain design-only.
+Loops 0–9 are complete and validated. Containerization, CI/CD, deployment, and dashboard work
+remain design-only.
 
 ---
 
@@ -461,7 +514,8 @@ replay, delayed feedback, monitoring calculations, and deployment remain design-
 5. Maintenance-cost results will be simulated and must not be presented as real industrial savings.
 6. The system could become overengineered if future tools are introduced without a clear need.
 7. Time-series leakage is a major modeling risk; Loop 3 added explicit structural protections and tests (future-row mutation/append, cross-asset isolation, fit isolation, replay exclusion), which future loops must keep passing.
-8. Retraining on very few newly labeled replay assets may not provide meaningful improvements.
+8. Retraining on very few newly labeled replay assets may not provide meaningful improvements;
+   Loop 9 therefore blocks fitting/promotion below configurable asset, row, and holdout minima.
 9. NASA hosting has moved before and may move again; the source URL is configuration, and `file://` acquisition provides a manual fallback.
 10. Relative-variance heuristics mislead on FD001 (sensors 08/13). Loop 3 deliberately generates
     features for **all** columns; Loop 4 reports importance/coefficient concentration but does not
@@ -471,12 +525,18 @@ replay, delayed feedback, monitoring calculations, and deployment remain design-
 12. pandas 3.x is newer than most tutorials/snippets assume; future code must target the pandas 3 API.
 13. Split conformal calibration uses temporally dependent rows within five calibration assets;
     replay coverage is empirical evidence, not a strict trajectory-level exchangeability guarantee.
+14. Loop 9 freezes the champion conformal calibrator for retrained candidates because no new
+    calibration role is available; poor promotion-holdout coverage blocks promotion.
+15. The default local SQLite MLflow registry and serving-model cache are process-local operational
+    constraints; multi-process refresh coordination is deferred beyond Loop 9.
+16. Loop 7 stores accepted readings, not a durable rejected-request stream, so the data-quality
+    report can only count rejected inputs when its producer supplies them explicitly.
 
 ---
 
 ## Immediate Next Action
 
-Review and commit Loop 8. Do not begin Loop 9 without explicit approval.
+Review and commit Loop 9. Do not begin Loop 10 without explicit approval.
 
 ---
 
@@ -514,6 +574,24 @@ Review and commit Loop 8. Do not begin Loop 9 without explicit approval.
 ---
 
 ## Validation Status
+
+All Loop 9 commands run on 2026-07-13 (macOS, PostgreSQL 17, Python 3.12.13):
+
+| Check | Status | Detail |
+| --- | --- | --- |
+| `uv sync` | Pass | 168 packages resolved / 163 checked; no dependency added |
+| Ruff format/lint | Pass | 152 files already formatted; all checks passed |
+| Mypy (strict) | Pass | No issues in 88 source files |
+| Pytest (full) | Pass | 398/398 passed in 4:13 with the real PostgreSQL test URL enabled |
+| PostgreSQL integration | Pass | Migration/head, report/assignment/event persistence, phase recovery, idempotency, approval/rejection audit, plus all preexisting integrations |
+| Local MLflow integration | Pass | Candidate tracking/registration idempotency, reload equality, candidate/challenger aliases, approved promotion, rejection preservation, and rollback |
+| Migration | Pass | `20260713_0003 (head)` on the development database; guarded upgrade/current test passed |
+| Live monitoring | Pass | Training reference v1 (14,407 training rows/70 assets); quality/drift/performance persisted; exact rerun reused run `2199a607-30e8-4c7b-b8a6-e3cb4a3945df` |
+| Trigger safety | Pass | Live drift/performance trigger blocked on one asset/201 rows/no safe holdout; manual force also blocked |
+| Registry integrity | Pass | Live v1 champion reload prediction difference 0.0; no live candidate version or alias movement on the blocked run |
+| Serving refresh | Pass | Explicit refresh loaded champion v1; failed-replacement unit test preserved the old cached object |
+| Loop 0–8 regression | Pass | Full suite, real FD001 integrations, replay, API, database, and MLflow behavior remain green |
+| Loop 10 boundary | Pass | No Docker, CI service, dashboard, frontend, Kubernetes, auth, or distributed orchestration code |
 
 All Loop 8 commands run on 2026-07-13 (macOS, PostgreSQL 17, Python 3.12.13):
 
@@ -639,11 +717,11 @@ WSGI bridge. Tests, registered-model loading, prediction equality, and the UI al
 
 ## Last Completed Loop
 
-**Loop 8 — Continuous Sensor Replay and Delayed Feedback** (2026-07-13).
+**Loop 9 — Monitoring, Retraining, Candidate Evaluation, and Model Promotion** (2026-07-13).
 
 ---
 
 ## Next Planned Loop
 
-After Loop 8 is fully validated and separately approved: **Loop 9 — Monitoring and Retraining**.
+After Loop 9 is reviewed and separately approved: **Loop 10 — Containers and CI/CD**.
 Do not begin it automatically.

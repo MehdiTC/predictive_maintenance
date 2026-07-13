@@ -38,6 +38,10 @@ def test_defaults() -> None:
     assert settings.api_default_page_size == 50
     assert settings.api_max_page_size == 200
     assert settings.cors_allowed_origins == ()
+    assert settings.monitoring_window_days == 30
+    assert settings.retraining_min_new_assets == 5
+    assert settings.retraining_min_holdout_assets == 2
+    assert settings.promotion_approval_required is True
 
 
 def test_data_settings_read_environment_variables(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -95,6 +99,15 @@ def test_online_settings_read_environment(monkeypatch: pytest.MonkeyPatch) -> No
 def test_online_page_limits_are_validated() -> None:
     with pytest.raises(ValidationError, match="must not exceed"):
         Settings(api_default_page_size=100, api_max_page_size=50)
+
+
+def test_lifecycle_thresholds_are_validated() -> None:
+    with pytest.raises(ValidationError, match="PSI warning"):
+        Settings(monitoring_psi_warning=0.3, monitoring_psi_detected=0.2)
+    with pytest.raises(ValidationError, match=r"in \[0, 1\]"):
+        Settings(retraining_holdout_fraction=1.1)
+    with pytest.raises(ValidationError, match="must be positive"):
+        Settings(retraining_min_new_assets=0)
 
 
 @pytest.mark.parametrize(

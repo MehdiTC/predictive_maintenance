@@ -78,8 +78,11 @@ Alias meanings:
 * `champion`: passed the existing Loop 4 eligibility/selection gates and promotion is enabled.
 * `archived`: most recently displaced champion; older versions remain preserved by number.
 
-This is initial registration/alias management, not the automated retraining and approval workflow
-planned for Loop 9.
+Loop 9 extends this contract: a retrained version receives `candidate`, then must reload with exact
+prediction equivalence before receiving `challenger`. Explicit gates run before approval; approval
+archives the displaced champion and assigns the new `champion`; rejection does not move it. Manual
+rollback validates a numbered version before the same archive/champion transition. Lifecycle UUID
+and bundle tags prevent duplicate runs/versions during recovery.
 
 ## Commands
 

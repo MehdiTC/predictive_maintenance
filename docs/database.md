@@ -1,4 +1,4 @@
-# Operational PostgreSQL Database (Loop 6)
+# Operational PostgreSQL Database (Loops 6, 8, and 9)
 
 ## Purpose and boundary
 
@@ -7,8 +7,8 @@ PostgreSQL stores mutable operational history for future online workflows. It is
 * Parquet under `data/`, which remains the immutable, checksummed training/feature snapshot layer.
 * MLflow's default `data/mlflow/mlflow.db`, which stores local experiment and registry metadata.
 
-Loop 6 provides persistence only. It does not ingest HTTP requests, generate online features,
-load the MLflow champion, calculate drift, replay trajectories, or run workflows.
+Loop 6 established persistence; Loop 8 added replay/outcomes; Loop 9 adds monitoring and
+model-lifecycle audit state. Modeling artifacts remain outside PostgreSQL.
 
 ## Relationships
 
@@ -20,6 +20,10 @@ erDiagram
     ASSETS ||--o{ MAINTENANCE_EVENTS : experiences
     MODEL_EVALUATIONS }o--|| MODEL_IDENTITY : summarizes
     DRIFT_REPORTS }o--|| MODEL_IDENTITY : reports
+    PIPELINE_RUNS ||--o{ DATA_QUALITY_REPORTS : produces
+    PIPELINE_RUNS ||--o{ LIFECYCLE_ASSET_ASSIGNMENTS : assigns
+    PIPELINE_RUNS ||--o{ LIFECYCLE_EVENTS : audits
+    ASSETS ||--o{ LIFECYCLE_ASSET_ASSIGNMENTS : participates
 
     ASSETS {
         uuid id PK
@@ -65,10 +69,11 @@ is unavailable. There is deliberately no duplicated local model-registry table.
   event cycle; delayed `occurred_at`; asset/time indexes; optional unique external event ID.
 * `model_evaluations`: replay/online/validation/benchmark scopes; ordered windows; explicit common
   metrics plus JSONB secondary metrics; model-version/creation index.
-* `drift_reports`: storage only; ordered windows, constrained status, non-negative distances/count;
-  JSONB detail and model/window index.
+* `drift_reports`: calculated Loop 9 summaries; ordered windows, constrained status, non-negative
+  distances/count; per-feature JSONB detail, reference identity, and model/window index.
 * `pipeline_runs`: ingestion/monitoring/retraining/backfill/promotion types; constrained lifecycle;
-  terminal finish and failed-error checks; status/time and type/time indexes.
+  unique optional idempotency key, durable phase/metadata, terminal finish and failed-error checks;
+  status/time and type/time indexes.
 * `replay_runs` (Loop 8, revision `20260713_0002`): durable replay progress and phase state —
   source dataset/subset/asset and attempt (unique together), unique operational external asset ID,
   replay-internal final cycle, last confirmed cycle bounded by it, constrained status/mode,
@@ -77,6 +82,13 @@ is unavailable. There is deliberately no duplicated local model-registry table.
 * `prediction_outcomes` (Loop 8): realized delayed labels — unique
   `(prediction_id, maintenance_event_id)`, non-negative realized RUL, restrictive foreign keys to
   predictions, maintenance events, and assets; asset and event indexes. Predictions stay immutable.
+* `data_quality_reports` (Loop 9, revision `20260713_0003`): champion/feature/window identity,
+  constrained pass/warning/fail/insufficient status, record/asset/failure counts, and detailed
+  checks/availability in JSONB; linked restrictively to its pipeline run.
+* `lifecycle_asset_assignments` (Loop 9): unique `(pipeline_run_id, asset_id)` role assignment to
+  retraining addition or promotion holdout, with source identity and row count.
+* `lifecycle_events` (Loop 9): append-only idempotent event key, phase, actor, from/to model
+  versions, and JSONB gate/approval/rejection/alias/refresh/rollback evidence.
 
 All operational foreign keys are restrictive. No asset or reading deletion cascades into history.
 All timestamps are timezone-aware. Command objects reject naive timestamps and non-finite values
@@ -132,8 +144,9 @@ uv run alembic downgrade -1  # development only; drops all Loop 6 tables at the 
 uv run pytest -m postgres tests/integration/test_postgres_operational.py
 ```
 
-Migration `20260712_0001` creates the complete Loop 6 schema. Alembic reads the typed operational
-URL; credentials are not stored in `alembic.ini`. Production setup never uses
+Migration `20260712_0001` creates the Loop 6 schema, `20260713_0002` adds Loop 8 replay/outcomes,
+and `20260713_0003` adds Loop 9 lifecycle persistence. Alembic reads the typed operational URL;
+credentials are not stored in `alembic.ini`. Production setup never uses
 `Base.metadata.create_all()`.
 
 ## Readiness
@@ -153,6 +166,6 @@ implemented here.
 
 ## Limitations
 
-Loop 7 provides API schemas/routes and a strict contiguous-cycle policy. Bulk-copy optimization,
-partitioning, drift/performance calculations, backfill, orchestration, Docker, and deployment do
-not exist. UUID creation and full sensor payload comparison add small overhead appropriate here.
+Loop 9 provides local phase orchestration but no scheduler or distributed worker. Bulk-copy
+optimization, partitioning, Docker, and deployment do not exist. UUID creation and full sensor
+payload comparison add small overhead appropriate here.

@@ -41,8 +41,10 @@ handled by the saved training-only Ridge preprocessing.
 
 The model URI is `models:/TurbineGuard-FD001-RUL@champion` by default. A thread-safe lazy cache
 resolves the registry version/run, loads the pyfunc once, and verifies its signature and feature
-version. Optional startup preload warms the cache. `refresh()` is explicit for a future controlled
-promotion; there is no polling watcher.
+version. Optional startup preload warms the cache. Loop 9 calls explicit `refresh()` after a
+controlled promotion or rollback. Refresh loads and validates the replacement before swapping the
+cache, so a failed refresh preserves the currently working model object; there is no polling
+watcher or cross-process coordination.
 
 ## Transaction and idempotency policy
 

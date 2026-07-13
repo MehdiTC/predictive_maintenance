@@ -37,6 +37,18 @@ class DriftStatus(StrEnum):
     INSUFFICIENT_DATA = "insufficient_data"
 
 
+class DataQualityStatus(StrEnum):
+    PASS = "pass"
+    WARNING = "warning"
+    FAIL = "fail"
+    INSUFFICIENT_DATA = "insufficient_data"
+
+
+class LifecycleAssetRole(StrEnum):
+    RETRAINING_ADDITION = "retraining_addition"
+    PROMOTION_HOLDOUT = "promotion_holdout"
+
+
 class PipelineRunType(StrEnum):
     INGESTION = "ingestion"
     MONITORING = "monitoring"

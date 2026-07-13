@@ -270,6 +270,10 @@ Settings are typed (`pydantic-settings`) and loaded from environment variables w
 | `TURBINE_GUARD_REPLAY_CYCLE_DELAY_SECONDS` | `1.0` | Wait between cycles in continuous mode |
 | `TURBINE_GUARD_REPLAY_SIMULATED_CYCLE_DURATION_SECONDS` | `1.0` | Simulated cycle length (simulation assumption) |
 | `TURBINE_GUARD_REPLAY_LEASE_SECONDS` | `120` | Exclusive advance-claim duration per worker |
+| `TURBINE_GUARD_MONITORING_WINDOW_DAYS` | `30` | Default UTC monitoring lookback |
+| `TURBINE_GUARD_RETRAINING_MIN_NEW_ASSETS` | `5` | Minimum new completed labeled assets |
+| `TURBINE_GUARD_RETRAINING_MIN_HOLDOUT_ASSETS` | `2` | Minimum disjoint promotion assets |
+| `TURBINE_GUARD_PROMOTION_APPROVAL_REQUIRED` | `true` | Prevent automatic champion replacement |
 
 ## Operational PostgreSQL persistence
 
@@ -322,6 +326,32 @@ uv run python scripts/replay_sensor_data.py evaluate-aggregate
 See [docs/replay.md](docs/replay.md) for modes, ground-truth isolation, recovery, concurrency,
 timestamp simulation, and limitations.
 
+## Monitoring, retraining, and promotion
+
+Loop 9 persists data-quality, all-feature drift, and delayed production-performance reports against
+the exact champion's training-only reference. It returns an explicit `no_action`, `monitor`,
+`retrain`, or `blocked` decision. Eligible completed assets are split at asset level into cumulative
+fit additions and a disjoint promotion holdout; protected validation/calibration and official NASA
+test roles are excluded.
+
+Candidate, frozen champion, and the existing median baseline use the same holdout. Blocking gates
+cover quality, data sufficiency, regression/NASA regression, critical alerts, false alarms,
+coverage, latency, artifact size, and MLflow reload equality. Approval is required by default;
+rejection preserves `champion`; promotion/rollback archive the displaced version and use the Loop 7
+load-before-swap cache refresh.
+
+```bash
+uv run alembic upgrade head
+make monitor
+make lifecycle-status
+uv run python scripts/model_lifecycle.py force-retraining
+uv run python scripts/model_lifecycle.py approve-promotion --run-id <UUID>
+uv run python scripts/model_lifecycle.py rollback --version <N>
+```
+
+See [docs/monitoring.md](docs/monitoring.md) for windows, formulas, thresholds, leakage policy,
+phase recovery, every CLI operation, and limitations.
+
 ## Project layout
 
 ```text
@@ -333,6 +363,7 @@ timestamp simulation, and limitations.
 │   ├── modeling/       # offline models, metrics, conformal, simulation, selection, artifacts
 │   ├── tracking/       # optional MLflow runs, pyfunc, registry, aliases, inspection
 │   ├── replay/         # held-out replay, delayed labels, delayed evaluation, CLI
+│   ├── monitoring/     # quality/drift/performance, retraining, gates, lifecycle CLI
 │   ├── services/       # business logic used by the API layer
 │   └── logging_config.py
 ├── scripts/
@@ -341,7 +372,8 @@ timestamp simulation, and limitations.
 │   ├── build_features.py
 │   ├── train_models.py
 │   ├── mlflow_models.py
-│   └── replay_sensor_data.py
+│   ├── replay_sensor_data.py
+│   └── model_lifecycle.py
 ├── notebooks/
 │   └── 01_eda.ipynb    # the single primary EDA notebook (make eda)
 ├── docs/
@@ -352,6 +384,7 @@ timestamp simulation, and limitations.
 │   ├── database.md
 │   ├── online_inference.md
 │   ├── replay.md
+│   ├── monitoring.md
 │   └── adr/
 ├── tests/
 │   ├── conftest.py

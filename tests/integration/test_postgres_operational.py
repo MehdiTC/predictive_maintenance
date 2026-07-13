@@ -96,6 +96,9 @@ def test_migration_is_current_and_schema_has_expected_constraints(postgres_engin
         "pipeline_runs",
         "replay_runs",
         "prediction_outcomes",
+        "data_quality_reports",
+        "lifecycle_asset_assignments",
+        "lifecycle_events",
     }
     inspector = inspect(postgres_engine)
     assert check_database_connection(postgres_engine) is True

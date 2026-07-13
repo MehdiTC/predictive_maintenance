@@ -104,6 +104,39 @@ class Settings(BaseSettings):
     replay_max_send_attempts: int = 5
     replay_retry_backoff_seconds: float = 0.5
 
+    monitoring_window_days: int = 30
+    monitoring_min_rows: int = 100
+    monitoring_min_assets: int = 1
+    monitoring_min_feature_non_null: int = 10
+    monitoring_psi_warning: float = 0.10
+    monitoring_psi_detected: float = 0.25
+    monitoring_wasserstein_normalized_threshold: float = 0.20
+    monitoring_missingness_shift_threshold: float = 0.05
+    monitoring_mean_shift_threshold: float = 0.50
+    monitoring_std_shift_threshold: float = 0.50
+    monitoring_drifted_feature_trigger_count: int = 3
+    monitoring_out_of_range_stddevs: float = 8.0
+
+    retraining_min_new_assets: int = 5
+    retraining_min_new_rows: int = 500
+    retraining_min_holdout_assets: int = 2
+    retraining_holdout_fraction: float = 0.30
+    retraining_interval_days: int = 30
+    retraining_performance_degradation: float = 0.15
+    retraining_minimum_critical_recall: float = 0.60
+    retraining_false_alarm_increase_tolerance: float = 50.0
+    retraining_minimum_coverage: float = 0.85
+
+    promotion_approval_required: bool = True
+    promotion_rmse_relative_tolerance: float = 0.02
+    promotion_nasa_relative_tolerance: float = 0.05
+    promotion_minimum_critical_recall: float = 0.60
+    promotion_maximum_false_alarms_per_1000: float = 250.0
+    promotion_minimum_coverage: float = 0.85
+    promotion_maximum_latency_ms: float = 10.0
+    promotion_maximum_artifact_size_bytes: int = 104_857_600
+    promotion_equivalence_tolerance: float = 1e-12
+
     @field_validator("environment", mode="before")
     @classmethod
     def _normalize_environment(cls, value: object) -> object:
@@ -231,12 +264,67 @@ class Settings(BaseSettings):
             )
         return value
 
+    @field_validator(
+        "monitoring_window_days",
+        "monitoring_min_rows",
+        "monitoring_min_assets",
+        "monitoring_min_feature_non_null",
+        "monitoring_drifted_feature_trigger_count",
+        "retraining_min_new_assets",
+        "retraining_min_new_rows",
+        "retraining_min_holdout_assets",
+        "retraining_interval_days",
+        "promotion_maximum_artifact_size_bytes",
+    )
+    @classmethod
+    def _positive_lifecycle_integer(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("Monitoring, retraining, and promotion counts must be positive.")
+        return value
+
+    @field_validator(
+        "monitoring_psi_warning",
+        "monitoring_psi_detected",
+        "monitoring_wasserstein_normalized_threshold",
+        "monitoring_missingness_shift_threshold",
+        "monitoring_mean_shift_threshold",
+        "monitoring_std_shift_threshold",
+        "monitoring_out_of_range_stddevs",
+        "retraining_performance_degradation",
+        "retraining_false_alarm_increase_tolerance",
+        "promotion_rmse_relative_tolerance",
+        "promotion_nasa_relative_tolerance",
+        "promotion_maximum_false_alarms_per_1000",
+        "promotion_maximum_latency_ms",
+        "promotion_equivalence_tolerance",
+    )
+    @classmethod
+    def _non_negative_lifecycle_float(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("Monitoring, retraining, and promotion thresholds cannot be negative.")
+        return value
+
+    @field_validator(
+        "retraining_holdout_fraction",
+        "retraining_minimum_critical_recall",
+        "retraining_minimum_coverage",
+        "promotion_minimum_critical_recall",
+        "promotion_minimum_coverage",
+    )
+    @classmethod
+    def _unit_interval_lifecycle_float(cls, value: float) -> float:
+        if not 0.0 <= value <= 1.0:
+            raise ValueError("Recall, coverage, and fraction thresholds must be in [0, 1].")
+        return value
+
     @model_validator(mode="after")
     def _valid_page_limits(self) -> Self:
         if self.api_default_page_size > self.api_max_page_size:
             raise ValueError("Default API page size must not exceed the maximum.")
         if self.api_max_page_size > 200:
             raise ValueError("Loop 7 API page size cannot exceed 200.")
+        if self.monitoring_psi_warning > self.monitoring_psi_detected:
+            raise ValueError("PSI warning threshold cannot exceed the detected threshold.")
         return self
 
 

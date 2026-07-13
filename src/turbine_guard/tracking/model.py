@@ -1,11 +1,14 @@
 """MLflow pyfunc packaging for the existing Loop 4 champion bundle."""
 
+from importlib.metadata import version
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
+import mlflow
 import numpy as np
 import pandas as pd
 from mlflow.models import ModelSignature
+from mlflow.models.model import ModelInfo
 from mlflow.pyfunc.model import PythonModel, PythonModelContext
 from mlflow.types import ColSpec, DataType, Schema
 
@@ -85,5 +88,39 @@ def champion_signature(feature_columns: tuple[str, ...]) -> ModelSignature:
                 ColSpec(type=DataType.double, name=UPPER_COLUMN),
                 ColSpec(type=DataType.string, name=RISK_COLUMN),
             ]
+        ),
+    )
+
+
+def log_bundle_model(
+    *,
+    name: str,
+    bundle_path: Path,
+    bundle_sha256: str,
+    feature_columns: tuple[str, ...],
+    input_example: pd.DataFrame,
+    metadata: dict[str, Any],
+) -> ModelInfo:
+    """Package a verified Loop 4 bundle using the one established Loop 5 pyfunc contract."""
+    source_root = Path(__file__).resolve().parents[3] / "src"
+    requirements = [
+        f"mlflow=={version('mlflow')}",
+        f"numpy=={version('numpy')}",
+        f"pandas=={version('pandas')}",
+        f"scikit-learn=={version('scikit-learn')}",
+        f"xgboost=={version('xgboost')}",
+        f"joblib=={version('joblib')}",
+    ]
+    return cast(
+        ModelInfo,
+        mlflow.pyfunc.log_model(
+            name=name,
+            python_model=ChampionPyFuncModel(feature_columns, bundle_sha256),
+            artifacts={"champion_bundle": str(bundle_path)},
+            code_paths=[str(source_root)],
+            signature=champion_signature(feature_columns),
+            input_example=input_example,
+            pip_requirements=requirements,
+            metadata=metadata,
         ),
     )

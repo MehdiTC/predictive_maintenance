@@ -127,3 +127,19 @@ def test_prediction_output_validation() -> None:
     invalid.loc[0, "lower_rul"] = 45.0
     with pytest.raises(ValueError, match="interval"):
         validate_prediction_output(invalid)
+
+
+def test_failed_refresh_preserves_currently_loaded_model(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _install_fakes(monkeypatch)
+    loader = ChampionModelLoader(Settings(data_dir=tmp_path, online_inference_enabled=False))
+    current = loader.get()
+
+    def fail() -> object:
+        raise RuntimeError("replacement invalid")
+
+    monkeypatch.setattr(loader, "_load", fail)
+    with pytest.raises(RuntimeError, match="replacement invalid"):
+        loader.refresh()
+    assert loader.get() is current

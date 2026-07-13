@@ -13,7 +13,7 @@ from mlflow.tracking import MlflowClient
 
 from turbine_guard.config.settings import Settings
 from turbine_guard.features.config import FeatureConfig
-from turbine_guard.features.manifest import FeatureManifest, load_feature_manifest
+from turbine_guard.features.manifest import feature_config_from_manifest, load_feature_manifest
 from turbine_guard.tracking.config import MlflowConfig
 
 
@@ -75,11 +75,11 @@ class ChampionModelLoader:
             return self._cached
 
     def refresh(self) -> LoadedChampion:
-        """Explicitly invalidate and reload after a future controlled promotion."""
+        """Load and validate before swapping, preserving the working cache on failure."""
         with self._lock:
-            self._cached = None
-            self._cached = self._load()
-            return self._cached
+            replacement = self._load()
+            self._cached = replacement
+            return replacement
 
     def check_model(self) -> bool:
         try:
@@ -100,7 +100,7 @@ class ChampionModelLoader:
     def _load(self) -> LoadedChampion:
         try:
             manifest = load_feature_manifest(self._manifest_path)
-            feature_config = _feature_config(manifest)
+            feature_config = feature_config_from_manifest(manifest)
             expected = tuple(manifest.feature_columns)
             if feature_config.feature_version != manifest.feature_config.feature_version:
                 raise ValueError("Feature version is internally inconsistent.")
@@ -177,18 +177,6 @@ def validate_prediction_output(frame: pd.DataFrame) -> tuple[float, float, float
     if risk not in {"healthy", "warning", "critical"}:
         raise ValueError("Champion returned an invalid risk level.")
     return point, lower, upper, risk
-
-
-def _feature_config(manifest: FeatureManifest) -> FeatureConfig:
-    record = manifest.feature_config
-    return FeatureConfig(
-        feature_version=record.feature_version,
-        source_columns=record.source_columns,
-        families=record.families,
-        windows=record.windows,
-        ewm_spans=record.ewm_spans,
-        min_periods=record.min_periods,
-    )
 
 
 def _optional_float(value: str | None) -> float | None:
