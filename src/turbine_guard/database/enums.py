@@ -51,3 +51,18 @@ class PipelineRunStatus(StrEnum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     CANCELLED = "cancelled"
+
+
+class ReplayRunStatus(StrEnum):
+    CREATED = "created"
+    RUNNING = "running"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class ReplayMode(StrEnum):
+    STEP = "step"
+    CONTINUOUS = "continuous"
+    ACCELERATED = "accelerated"

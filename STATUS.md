@@ -3,9 +3,15 @@
 ## Project Status
 
 **Project:** TurbineGuard
-**Current phase:** Loop 7 complete and validated
-**Active loop:** None — awaiting review before Loop 8
-**Overall status:** FastAPI online inference, asset health, atomic PostgreSQL persistence, shared features, cached MLflow champion, structured errors, readiness, and Prometheus metrics validated; no Loop 8 functionality
+**Current phase:** Loop 8 complete and validated
+**Active loop:** None — awaiting review before Loop 9
+**Overall status:** Held-out replay through the real Loop 7 API, durable lease-protected replay
+state, idempotent failure events, realized-label backfill, and per-model-version delayed
+evaluation are implemented, documented (ADR 0007, docs/replay.md), and validated: all quality
+gates, 364 tests (including six real-PostgreSQL replay integration tests and a real-FD001 champion
+replay), the `20260713_0002` migration on the development database, and a live 201-cycle replay of
+held-out engine 9 with failure emission, label backfill, per-asset and aggregate evaluation,
+idempotent restart, and Loop 3–7 integrity all passed. No Loop 9 functionality exists.
 **Last updated:** 2026-07-13
 
 ---
@@ -41,7 +47,7 @@ See `PROJECT_SPEC.md` for the complete design.
 
 ## Current Repository State
 
-Loops 0–7 are complete and validated:
+Loops 0–7 are complete and validated; Loop 8 is implemented pending validation:
 
 ```text
 ├── src/turbine_guard/
@@ -66,6 +72,8 @@ Loops 0–7 are complete and validated:
 │   │   └── build_cli.py        # feature-build CLI
 │   ├── modeling/               # Loop 4 models, metrics, alerts, conformal, simulation, artifacts
 │   ├── tracking/               # Loop 5 MLflow adapter, pyfunc, registry, aliases, CLI
+│   ├── replay/                 # Loop 8: verified source, HTTP client, lease-protected state,
+│   │                           #   orchestrator, realized labels, delayed evaluation, CLI
 │   ├── services/health.py
 │   └── logging_config.py       # structured JSON logging
 ├── scripts/download_data.py     # thin wrappers over turbine_guard CLIs
@@ -107,14 +115,15 @@ data/
 
 Loop 4 model artifacts remain under `data/models/cmapss/FD001/`. Optional Loop 5 runtime state uses
 `data/mlflow/` by default and remains gitignored. PostgreSQL operational persistence is implemented
-under `database/` and Alembic. Loop 7 adds serving endpoints; Prefect, replay, delayed feedback,
-drift calculations, Docker, and deployment remain absent deliberately.
+under `database/` and Alembic (revisions `20260712_0001` and `20260713_0002`). Loop 7 serves the
+online API; Loop 8 adds replay and delayed feedback. Prefect, drift calculations, retraining,
+promotion, Docker, and deployment remain absent deliberately.
 
 ---
 
 ## Current Loop
 
-Loop 7 is complete and validated. Do not begin Loop 8 without explicit approval.
+Loop 8 is complete and validated. Do not begin Loop 9 without explicit approval.
 
 ---
 
@@ -129,6 +138,94 @@ Loop 7 is complete and validated. Do not begin Loop 8 without explicit approval.
   policy (2026-07-12).
 * [x] Implemented and validated Loop 5 — MLflow tracking and model registry (2026-07-12).
 * [x] Implemented and validated Loop 6 — PostgreSQL operational persistence (2026-07-12).
+* [x] Implemented and validated Loop 7 — FastAPI online inference service (2026-07-13).
+* [x] Implemented and validated Loop 8 — continuous sensor replay and delayed feedback
+  (2026-07-13).
+
+---
+
+## Loop 8 Implementation Notes
+
+1. **Replay source.** `replay/source.py` reads raw cycles from the validated Loop 2 trajectory
+   Parquet restricted to the Loop 3 replay partition, re-verifying the SHA-256 chain feature
+   manifest → split manifest → processing report → Parquet before exposing any row. Wrong-split,
+   missing, tampered, non-contiguous, and non-finite inputs fail before a partial replay. Replay
+   RUL labels are never read during ingestion; Loop 3 outputs are never modified.
+2. **Replay client.** `replay/client.py` builds exact `SensorReadingRequest` payloads (one cycle
+   only, deterministic simulated `observed_at` and `ingestion_id`) and POSTs them to
+   `/v1/sensor-readings` over httpx. Timeouts and 5xx are retried with bounded exponential backoff
+   by resending the identical payload (reconciliation = the API's exact-retry idempotency);
+   409/422 are permanent; the confirmed asset/cycle identity is verified on every response.
+3. **Durable state.** New `replay_runs` table (Alembic `20260713_0002`) records source
+   dataset/subset/asset/attempt, unique operational external asset ID, replay-internal final
+   cycle, last confirmed cycle, status/mode/delay, simulated cycle duration, phase stamps, lease
+   fields, error text, and source checksums. No prediction endpoint reads it.
+4. **Concurrency.** Advancement uses a claim lease: claim in one short `FOR UPDATE` transaction,
+   send over HTTP with no lock held, confirm with the token. Rivals cannot claim an active lease
+   (so the same next cycle is never sent twice); crashed leases expire and idempotent resends
+   reconcile; stale confirmations fail explicitly.
+5. **Failure events.** After the final cycle is verified persisted, a `failure` maintenance event
+   is written through the existing repository with external event ID
+   `replay-run:<run_id>:failure` (exactly-once across retries), `event_cycle = final_cycle`, the
+   simulated occurrence time, and replay lineage metadata. `POST /v1/maintenance-events` is
+   deliberately deferred (ADR 0007).
+6. **Delayed labels.** New `prediction_outcomes` table stores `realized_rul = T − t` per stored
+   prediction, unique per `(prediction_id, maintenance_event_id)`, backfilled only after the
+   event exists. Labels are validated (non-negative, zero at the final cycle, −1 per cycle,
+   conflict/impossible detection); predictions remain immutable; backfill is idempotent.
+7. **Delayed evaluation.** Reuses Loop 4 `regression_metrics`, `alert_metrics` (critical 30 /
+   warning 50), and `interval_metrics`, grouped by the model identity stored with each
+   prediction; per-asset (`replay_asset`) and cross-run (`replay_aggregate`) rows persist in
+   `model_evaluations` with scope `replay`. Replay results never change the Loop 4 champion.
+8. **Lifecycle.** `replay/engine.py` supports step/continuous/accelerated modes, `--max-cycles`,
+   stop-after-current-cycle, resume-from-earliest-incomplete-phase, idempotent repeated starts,
+   and documented force restart (cancels an incomplete run, new attempt + fresh operational asset
+   `…-rN`; nothing is deleted). Phase transitions are single transactions, so partial-phase crash
+   states are recoverable and were tested.
+9. **CLI.** `scripts/replay_sensor_data.py` (`replay/cli.py`): `start` (`--asset-id`/`--all`,
+   `--mode`, `--delay`, `--max-cycles`, `--force-restart`), `step`, `resume`, `status`
+   (`--run-id`/`--all`, `--json`), `stop`, `evaluate-aggregate`; configurable
+   `--api-base-url`/`--data-dir`; exit codes 0/1/2; concise summaries on stdout, structured JSON
+   logs for diagnostics.
+10. **Observability.** `ReplayMetrics` (own registry): runs started/active/completed, cycles
+    sent/accepted, retries, failures, failure events, backfills, evaluations, cycle latency; run
+    and asset IDs appear only in structured logs, never as metric labels.
+11. **Settings and dependencies.** Seven typed `TURBINE_GUARD_REPLAY_*` settings (`.env.example`
+    updated). The only dependency change is promoting `httpx>=0.27` from the dev group to runtime
+    (already in `uv.lock`; needed by the replay client at runtime; lets tests inject FastAPI's
+    `TestClient`, an `httpx.Client` subclass). No queue, scheduler, retry library, or
+    orchestration dependency.
+12. **Timestamps.** Per-run UTC epoch; cycle `t` observes at `epoch + (t−1) × simulated cycle
+    duration` (default 1 s, configurable). Source cycle, simulated observation time, and real
+    ingestion time stay distinct; no real-hour claim is implied.
+13. **Tests.** 70 new unit tests (343 total pass locally): source integrity/split enforcement,
+    payload determinism and future-mutation immunity, client retry/conflict/timeout semantics,
+    label math/invariants/conflicts, hand-calculated evaluation metrics and per-version grouping,
+    full orchestrator lifecycle/recovery/concurrency against an in-memory store implementing the
+    same contract. Five new guarded PostgreSQL integration tests cover the complete HTTP
+    lifecycle, uncertain-outcome recovery, partial-phase resume, force restart, and outcome
+    idempotency/conflicts, plus one optional real-FD001 replay with the registered champion.
+14. **Validation (all user-run on 2026-07-13):** `uv sync` (168 resolved / 163 checked), Ruff
+    format (132 files) and lint, strict Mypy (75 files), full pytest (364 collected; 349 passed
+    with PostgreSQL tests skipped, then all 21 integration tests passed with
+    `TURBINE_GUARD_DATABASE_TEST_URL` set — including the six replay tests and the real-FD001
+    champion replay), and all pre-commit hooks. One pre-existing Loop 6 test pinned the old head
+    revision literally; it now asserts the database matches Alembic's actual head and also
+    requires the two Loop 8 tables (a strengthening, verified passing).
+15. **Live validation (real FD001 engine 9, registered champion, 2026-07-13):** migration
+    `20260712_0001 → 20260713_0002` applied and `alembic current` at head. Step mode advanced
+    exactly one cycle per invocation; resume streamed all 201 cycles through HTTP; the failure
+    event was emitted exactly once at cycle 201 (`replay-run:<run_id>:failure`); 201 realized
+    labels were backfilled (0/1/2 at cycles 201/200/199); per-asset and aggregate evaluations
+    persisted with scope `replay`. Completed-run `start` was a no-op and repeated
+    `evaluate-aggregate` inserted no duplicate (exactly two evaluation rows total). Loop 3/4
+    reruns returned `already_built`/`already_trained`.
+16. **Real delayed-evaluation result (engine 9, 201 cycles, champion v1):** MAE 26.12, RMSE
+    32.49, NASA score 7144.70, critical recall 0.645, interval coverage 0.478. These are
+    computed against realized *uncapped* RUL, so early-life rows (true RUL 125–200 versus the
+    capped-125 champion) inflate regression error and break interval coverage by construction;
+    this is the honest operator-facing view, documented in `docs/replay.md`, and is not
+    comparable to Loop 4's capped-domain replay metrics.
 
 ---
 
@@ -346,6 +443,7 @@ Loop 7 is complete and validated. Do not begin Loop 8 without explicit approval.
 * Loop 2 (ADR 0001): pandas + pyarrow runtime; typed hand-rolled validation (no Great Expectations/pandera); matplotlib/nbconvert/ipykernel dev-only; SciPy deferred; validated and processed layers collapsed into one gated step; required-vs-warning check separation; canonical FD001 profile separate from general validation.
 * Loop 3 (ADR 0002): 70/15/5/10 asset-level split via seeded permutation + largest-remainder counts; preserve early-cycle rows with structural nulls, defer imputation/scaling to Loop 4; trailing asset-grouped windows with min_periods=1 and OLS rolling slope (degenerate → 0.0); optional off-by-default RUL cap alongside the always-present uncapped target; stateless FeatureBuilder with a history-replaying incremental state; frozen-dataclass configuration (no YAML layer).
 * Loop 4 (ADR 0003): train-only Ridge imputation/indicators/scaling; native-null histogram gradient boosting and XGBoost; uncapped/capped-125 targets with common-domain ranking; collapsed first-alert episodes; row-level split conformal approximation; validation-only eligibility/ranking with simplicity tolerance; normalized simulated costs; checksummed joblib artifacts.
+* Loop 8 (ADR 0007): focused `replay_runs` state table instead of overloading `pipeline_runs`; normalized `prediction_outcomes` keyed `(prediction_id, maintenance_event_id)` preserving immutable predictions; failure events written through the application service with deterministic external event IDs (public maintenance-event endpoint deferred); claim-lease concurrency with no lock across HTTP; phase-stamped recovery from the earliest incomplete phase; force restart = new attempt + fresh operational asset, never deletion; deterministic simulated timestamps; delayed evaluation reuses Loop 4 metrics grouped by stored model identity; httpx promoted from dev to runtime.
 
 ### Implemented so far
 
@@ -378,7 +476,7 @@ replay, delayed feedback, monitoring calculations, and deployment remain design-
 
 ## Immediate Next Action
 
-Review and commit Loop 7. Do not begin Loop 8 without explicit approval.
+Review and commit Loop 8. Do not begin Loop 9 without explicit approval.
 
 ---
 
@@ -416,6 +514,23 @@ Review and commit Loop 7. Do not begin Loop 8 without explicit approval.
 ---
 
 ## Validation Status
+
+All Loop 8 commands run on 2026-07-13 (macOS, PostgreSQL 17, Python 3.12.13):
+
+| Check | Status | Detail |
+| --- | --- | --- |
+| `uv sync` | Pass | 168 resolved / 163 checked; httpx promoted to runtime |
+| Ruff format/lint | Pass | 132 files formatted; all checks passed |
+| Mypy (strict) | Pass | No issues in 75 source files (9 new replay/database modules) |
+| Pytest (full) | Pass | 364 collected; 349 + 15 PostgreSQL-guarded, all passing with the test DB |
+| Replay integration | Pass | Six real-PostgreSQL tests: HTTP lifecycle, uncertain-outcome recovery, partial-phase resume, force restart, outcome idempotency/conflict, real-FD001 champion replay |
+| Pre-commit | Pass | Ruff format, Ruff lint, and Mypy hooks passed |
+| Migration | Pass | `20260712_0001 → 20260713_0002` applied; `alembic current` at head; head test made dynamic and strengthened with the new tables |
+| Live replay | Pass | Engine 9, 201 cycles via step + resume; one failure event at cycle 201; 201 labels (final = 0, −1 per cycle); per-asset + aggregate evaluations persisted |
+| Idempotency | Pass | Completed-run `start` no-op; repeated `evaluate-aggregate` inserted nothing; exact retries returned HTTP 200 idempotent |
+| Ground-truth isolation | Pass | No event/labels before the final cycle; final cycle stored only in `replay_runs`; earlier predictions unchanged after backfill |
+| Loop 3–7 integrity | Pass | `already_built` / `already_trained`; champion `capped_125--ridge_alpha_1` unchanged |
+| Loop 9 boundary | Pass | No drift calculations, retraining, promotion, Prefect, or Docker code |
 
 All Loop 7 commands run on 2026-07-12/13 (macOS, PostgreSQL 17, Python 3.12.13):
 
@@ -524,11 +639,11 @@ WSGI bridge. Tests, registered-model loading, prediction equality, and the UI al
 
 ## Last Completed Loop
 
-**Loop 5 — MLflow Experiment Tracking and Model Registry** (2026-07-12).
+**Loop 8 — Continuous Sensor Replay and Delayed Feedback** (2026-07-13).
 
 ---
 
 ## Next Planned Loop
 
-After Loop 7 is fully validated and separately approved: **Loop 8 — Replay and Delayed Feedback**.
+After Loop 8 is fully validated and separately approved: **Loop 9 — Monitoring and Retraining**.
 Do not begin it automatically.

@@ -266,6 +266,10 @@ Settings are typed (`pydantic-settings`) and loaded from environment variables w
 | `TURBINE_GUARD_ASSET_STALE_AFTER_SECONDS` | `300` | Asset-health staleness threshold |
 | `TURBINE_GUARD_CORS_ALLOWED_ORIGINS` | `[]` | Explicit origins; disabled by default |
 | `TURBINE_GUARD_TRUSTED_HOSTS` | local/test hosts | Explicit host allowlist |
+| `TURBINE_GUARD_REPLAY_API_BASE_URL` | `http://127.0.0.1:8000` | Inference API the replay client targets |
+| `TURBINE_GUARD_REPLAY_CYCLE_DELAY_SECONDS` | `1.0` | Wait between cycles in continuous mode |
+| `TURBINE_GUARD_REPLAY_SIMULATED_CYCLE_DURATION_SECONDS` | `1.0` | Simulated cycle length (simulation assumption) |
+| `TURBINE_GUARD_REPLAY_LEASE_SECONDS` | `120` | Exclusive advance-claim duration per worker |
 
 ## Operational PostgreSQL persistence
 
@@ -299,6 +303,25 @@ transactions, errors, metrics, readiness, security limitations, and the boundary
 
 Logs are emitted as single-line JSON objects; fields passed via `extra=` on logging calls are merged into the payload.
 
+## Sensor replay and delayed feedback
+
+Loop 8 replays the ten held-out FD001 engines one cycle at a time through the real ingestion API,
+never exposing future observations or the failure cycle to the inference path. When a trajectory
+ends, a failure event is emitted, realized RUL labels (`final_cycle − cycle`) are backfilled for
+every historical prediction, and delayed evaluations (Loop 4 metrics, grouped by the model version
+stored with each prediction) are persisted. Progress is durable in PostgreSQL, interruptions
+resume from the earliest incomplete phase, and repeated commands are idempotent.
+
+```bash
+# with the API running (make run) and the migration applied (uv run alembic upgrade head)
+uv run python scripts/replay_sensor_data.py start --asset-id 9 --mode accelerated
+uv run python scripts/replay_sensor_data.py status --run-id <UUID>
+uv run python scripts/replay_sensor_data.py evaluate-aggregate
+```
+
+See [docs/replay.md](docs/replay.md) for modes, ground-truth isolation, recovery, concurrency,
+timestamp simulation, and limitations.
+
 ## Project layout
 
 ```text
@@ -309,6 +332,7 @@ Logs are emitted as single-line JSON objects; fields passed via `extra=` on logg
 │   ├── features/       # RUL labels, asset-level splits, FeatureBuilder, manifests, pipeline
 │   ├── modeling/       # offline models, metrics, conformal, simulation, selection, artifacts
 │   ├── tracking/       # optional MLflow runs, pyfunc, registry, aliases, inspection
+│   ├── replay/         # held-out replay, delayed labels, delayed evaluation, CLI
 │   ├── services/       # business logic used by the API layer
 │   └── logging_config.py
 ├── scripts/
@@ -316,7 +340,8 @@ Logs are emitted as single-line JSON objects; fields passed via `extra=` on logg
 │   ├── process_data.py
 │   ├── build_features.py
 │   ├── train_models.py
-│   └── mlflow_models.py
+│   ├── mlflow_models.py
+│   └── replay_sensor_data.py
 ├── notebooks/
 │   └── 01_eda.ipynb    # the single primary EDA notebook (make eda)
 ├── docs/
@@ -324,6 +349,9 @@ Logs are emitted as single-line JSON objects; fields passed via `extra=` on logg
 │   ├── features.md
 │   ├── modeling.md
 │   ├── mlflow.md
+│   ├── database.md
+│   ├── online_inference.md
+│   ├── replay.md
 │   └── adr/
 ├── tests/
 │   ├── conftest.py

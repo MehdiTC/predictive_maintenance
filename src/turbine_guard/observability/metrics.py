@@ -157,3 +157,72 @@ class OnlineMetrics:
 
     def render(self) -> bytes:
         return generate_latest(self.registry)
+
+
+class ReplayMetrics:
+    """Low-cardinality replay counters for one worker process.
+
+    Run and asset identifiers stay in structured logs; they are never metric
+    labels. Each instance owns its registry, mirroring :class:`OnlineMetrics`.
+    """
+
+    def __init__(self) -> None:
+        self.registry = CollectorRegistry(auto_describe=True)
+        self.runs_started = Counter(
+            "turbine_guard_replay_runs_started_total",
+            "Replay runs created or explicitly restarted.",
+            registry=self.registry,
+        )
+        self.cycles_sent = Counter(
+            "turbine_guard_replay_cycles_sent_total",
+            "Cycle payloads sent to the ingestion API.",
+            registry=self.registry,
+        )
+        self.cycles_accepted = Counter(
+            "turbine_guard_replay_cycles_accepted_total",
+            "Cycles confirmed by the ingestion API.",
+            registry=self.registry,
+        )
+        self.retries = Counter(
+            "turbine_guard_replay_retries_total",
+            "Transient ingestion retries.",
+            registry=self.registry,
+        )
+        self.failures = Counter(
+            "turbine_guard_replay_failures_total",
+            "Replay advances that failed permanently.",
+            registry=self.registry,
+        )
+        self.failure_events = Counter(
+            "turbine_guard_replay_failure_events_total",
+            "Failure maintenance events emitted at end of trajectory.",
+            registry=self.registry,
+        )
+        self.label_backfills = Counter(
+            "turbine_guard_replay_label_backfills_total",
+            "Completed realized-label backfills.",
+            registry=self.registry,
+        )
+        self.evaluations = Counter(
+            "turbine_guard_replay_evaluations_total",
+            "Persisted delayed evaluations.",
+            registry=self.registry,
+        )
+        self.active_runs = Gauge(
+            "turbine_guard_replay_active_runs",
+            "Replay runs this worker is currently advancing.",
+            registry=self.registry,
+        )
+        self.completed_runs = Counter(
+            "turbine_guard_replay_completed_runs_total",
+            "Replay runs marked complete by this worker.",
+            registry=self.registry,
+        )
+        self.cycle_latency = Histogram(
+            "turbine_guard_replay_cycle_duration_seconds",
+            "End-to-end duration of one replay cycle advance.",
+            registry=self.registry,
+        )
+
+    def render(self) -> bytes:
+        return generate_latest(self.registry)

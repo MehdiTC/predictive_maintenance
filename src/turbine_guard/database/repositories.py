@@ -17,6 +17,8 @@ from turbine_guard.database.commands import (
     NewModelEvaluation,
     NewPipelineRun,
     NewPrediction,
+    NewPredictionOutcome,
+    NewReplayRun,
     NewSensorReading,
 )
 from turbine_guard.database.enums import (
@@ -27,6 +29,8 @@ from turbine_guard.database.enums import (
 from turbine_guard.database.errors import (
     DuplicateExternalIdError,
     PredictionConflictError,
+    PredictionOutcomeConflictError,
+    ReplayRunConflictError,
     SensorReadingConflictError,
 )
 from turbine_guard.database.models import (
@@ -36,6 +40,8 @@ from turbine_guard.database.models import (
     ModelEvaluation,
     PipelineRun,
     Prediction,
+    PredictionOutcome,
+    ReplayRun,
     SensorReading,
 )
 
@@ -338,6 +344,16 @@ class ModelEvaluationRepository:
             )
         )
 
+    def for_replay_run(self, replay_run_id: uuid.UUID) -> list[ModelEvaluation]:
+        """Evaluations whose JSONB metrics reference one replay run."""
+        return list(
+            self.session.scalars(
+                select(ModelEvaluation)
+                .where(ModelEvaluation.metrics.contains({"replay_run_id": str(replay_run_id)}))
+                .order_by(desc(ModelEvaluation.created_at))
+            )
+        )
+
 
 class DriftReportRepository:
     def __init__(self, session: Session) -> None:
@@ -358,6 +374,112 @@ class DriftReportRepository:
                     DriftReport.model_version == model_version,
                 )
                 .order_by(desc(DriftReport.window_end))
+            )
+        )
+
+
+class ReplayRunRepository:
+    """Durable replay progress rows with row-level locking for advancement."""
+
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def create(self, command: NewReplayRun) -> ReplayRun:
+        values = asdict(command)
+        values["run_metadata"] = values.pop("metadata")
+        run = ReplayRun(**values)
+        try:
+            with self.session.begin_nested():
+                self.session.add(run)
+                self.session.flush()
+        except IntegrityError as exc:
+            raise ReplayRunConflictError(
+                f"A replay run for {command.dataset_subset} asset "
+                f"{command.source_asset_id} attempt {command.attempt} or external asset "
+                f"{command.external_asset_id!r} already exists."
+            ) from exc
+        return run
+
+    def get(self, run_id: uuid.UUID) -> ReplayRun | None:
+        return self.session.get(ReplayRun, run_id)
+
+    def get_for_update(self, run_id: uuid.UUID) -> ReplayRun | None:
+        """Lock one run row so competing workers serialize on it briefly."""
+        return self.session.scalar(
+            select(ReplayRun).where(ReplayRun.id == run_id).with_for_update()
+        )
+
+    def latest_for_source(
+        self, dataset_name: str, dataset_subset: str, source_asset_id: int
+    ) -> ReplayRun | None:
+        return self.session.scalar(
+            select(ReplayRun)
+            .where(
+                ReplayRun.dataset_name == dataset_name,
+                ReplayRun.dataset_subset == dataset_subset,
+                ReplayRun.source_asset_id == source_asset_id,
+            )
+            .order_by(desc(ReplayRun.attempt))
+            .limit(1)
+        )
+
+    def list_runs(self, *, limit: int = 100) -> list[ReplayRun]:
+        if limit <= 0:
+            raise ValueError("limit must be positive.")
+        return list(
+            self.session.scalars(
+                select(ReplayRun).order_by(desc(ReplayRun.created_at)).limit(limit)
+            )
+        )
+
+
+class PredictionOutcomeRepository:
+    """Idempotent realized-label storage keyed by prediction and outcome event."""
+
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def create(self, command: NewPredictionOutcome) -> PredictionOutcome:
+        values = asdict(command)
+        statement = (
+            insert(PredictionOutcome)
+            .values(**values)
+            .on_conflict_do_nothing()
+            .returning(PredictionOutcome.id)
+        )
+        inserted_id = self.session.scalar(statement)
+        if inserted_id is not None:
+            outcome = self.session.get(PredictionOutcome, inserted_id)
+            assert outcome is not None
+            return outcome
+        existing = self.session.scalar(
+            select(PredictionOutcome).where(
+                PredictionOutcome.prediction_id == command.prediction_id,
+                PredictionOutcome.maintenance_event_id == command.maintenance_event_id,
+            )
+        )
+        if existing is None or not _same_outcome(existing, command):
+            raise PredictionOutcomeConflictError(
+                f"Prediction {command.prediction_id} already has a different realized "
+                "label for this outcome event."
+            )
+        return existing
+
+    def for_event(self, maintenance_event_id: uuid.UUID) -> list[PredictionOutcome]:
+        return list(
+            self.session.scalars(
+                select(PredictionOutcome)
+                .where(PredictionOutcome.maintenance_event_id == maintenance_event_id)
+                .order_by(PredictionOutcome.cycle)
+            )
+        )
+
+    def for_asset(self, asset_id: uuid.UUID) -> list[PredictionOutcome]:
+        return list(
+            self.session.scalars(
+                select(PredictionOutcome)
+                .where(PredictionOutcome.asset_id == asset_id)
+                .order_by(PredictionOutcome.cycle)
             )
         )
 
@@ -445,3 +567,14 @@ def _same_event(event: MaintenanceEvent, command: NewMaintenanceEvent) -> bool:
     values = asdict(command)
     values["event_metadata"] = values.pop("metadata")
     return all(getattr(event, name) == value for name, value in values.items())
+
+
+def _same_outcome(outcome: PredictionOutcome, command: NewPredictionOutcome) -> bool:
+    """Label content equality; ``labeled_at`` is retry bookkeeping, not content."""
+    return (
+        outcome.prediction_id == command.prediction_id
+        and outcome.maintenance_event_id == command.maintenance_event_id
+        and outcome.asset_id == command.asset_id
+        and outcome.cycle == command.cycle
+        and outcome.realized_rul == command.realized_rul
+    )

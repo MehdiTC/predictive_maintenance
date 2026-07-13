@@ -21,5 +21,13 @@ class PredictionConflictError(ConflictError):
     """A model already predicted for a reading with different values."""
 
 
+class PredictionOutcomeConflictError(ConflictError):
+    """A prediction already has a different realized label for the same event."""
+
+
+class ReplayRunConflictError(ConflictError):
+    """A replay run identity (source attempt or external asset) already exists."""
+
+
 class NotFoundError(PersistenceError):
     """A required referenced operational record does not exist."""

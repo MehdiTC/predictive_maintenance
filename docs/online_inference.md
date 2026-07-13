@@ -74,8 +74,9 @@ returns HTTP 201. One reading may validly have multiple predictions when model v
 | `GET /metrics` | Prometheus exposition |
 
 `POST /v1/predictions` is deliberately deferred: with one champion it adds no distinct capability
-over idempotent ingestion/re-scoring. Maintenance-event ingestion is Loop 8 delayed feedback and is
-also absent.
+over idempotent ingestion/re-scoring. Maintenance-event ingestion has no HTTP endpoint: Loop 8's
+trusted replay worker writes failure events through the application service layer, and a public
+endpoint is deferred until an external feedback producer exists (see ADR 0007 and docs/replay.md).
 
 ## Request contract
 
@@ -169,5 +170,7 @@ be disabled, and production errors do not expose tracebacks. Authentication and 
 not part of the current project specification, but a real industrial deployment must add both,
 plus TLS, rate limiting, asset enrollment, secret management, and network controls.
 
-Loop 7 does not implement replay, maintenance/failure feedback, label backfill, drift, performance
-monitoring, retraining, promotion, Prefect, Docker, deployment, or a dashboard.
+Replay, failure feedback, delayed label backfill, and delayed evaluation live in the Loop 8 replay
+subsystem (docs/replay.md), which drives this API as a client. The API itself still implements no
+drift calculations, performance monitoring schedules, retraining, promotion, Prefect, Docker,
+deployment, or dashboard.

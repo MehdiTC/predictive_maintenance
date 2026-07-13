@@ -31,6 +31,8 @@ from turbine_guard.database.enums import (
     MaintenanceEventType,
     PipelineRunStatus,
     PipelineRunType,
+    ReplayMode,
+    ReplayRunStatus,
     RiskLevel,
 )
 
@@ -287,6 +289,128 @@ class DriftReport(CreatedAtMixin, Base):
     details: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default="{}"
     )
+
+
+class ReplayRun(CreatedAtMixin, Base):
+    """Durable progress and phase state for one held-out trajectory replay.
+
+    The final source cycle is replay-internal ground truth. It lives only in
+    this table, which no prediction endpoint reads, so the online inference
+    path structurally cannot observe an asset's future.
+    """
+
+    __tablename__ = "replay_runs"
+    __table_args__ = (
+        UniqueConstraint(
+            "dataset_name",
+            "dataset_subset",
+            "source_asset_id",
+            "attempt",
+            name="uq_replay_runs_source_attempt",
+        ),
+        CheckConstraint("source_asset_id > 0", name="positive_source_asset"),
+        CheckConstraint("attempt >= 1", name="positive_attempt"),
+        CheckConstraint("final_cycle > 0", name="positive_final_cycle"),
+        CheckConstraint(
+            "last_confirmed_cycle >= 0 AND last_confirmed_cycle <= final_cycle",
+            name="confirmed_cycle_in_range",
+        ),
+        CheckConstraint("cycle_delay_seconds >= 0", name="non_negative_delay"),
+        CheckConstraint("simulated_cycle_duration_seconds > 0", name="positive_cycle_duration"),
+        CheckConstraint(
+            "status != 'completed' OR completed_at IS NOT NULL",
+            name="completed_run_has_finish",
+        ),
+        CheckConstraint(
+            "status != 'failed' OR error_message IS NOT NULL",
+            name="failed_run_has_error",
+        ),
+        CheckConstraint(
+            "(lease_token IS NULL) = (lease_expires_at IS NULL)",
+            name="lease_fields_paired",
+        ),
+        Index("ix_replay_runs_status", "status"),
+        Index("ix_replay_runs_source_asset", "dataset_subset", "source_asset_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    dataset_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    dataset_subset: Mapped[str] = mapped_column(String(100), nullable=False)
+    source_asset_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    external_asset_id: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    asset_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assets.id", ondelete="RESTRICT")
+    )
+    final_cycle: Mapped[int] = mapped_column(Integer, nullable=False)
+    last_confirmed_cycle: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    status: Mapped[ReplayRunStatus] = mapped_column(
+        _enum(ReplayRunStatus, "replay_run_status"), nullable=False
+    )
+    mode: Mapped[ReplayMode] = mapped_column(_enum(ReplayMode, "replay_mode"), nullable=False)
+    cycle_delay_seconds: Mapped[float] = mapped_column(Double, nullable=False)
+    simulated_cycle_duration_seconds: Mapped[float] = mapped_column(Double, nullable=False)
+    replay_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_advanced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lease_token: Mapped[str | None] = mapped_column(String(64))
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    failure_event_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("maintenance_events.id", ondelete="RESTRICT")
+    )
+    labels_backfilled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    evaluation_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    run_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    asset: Mapped[Asset | None] = relationship()
+    failure_event: Mapped[MaintenanceEvent | None] = relationship()
+
+
+class PredictionOutcome(CreatedAtMixin, Base):
+    """Realized delayed label linking one immutable prediction to one outcome event.
+
+    Predictions are never mutated; the realized RUL lives in this separate
+    table so one prediction can be evaluated against multiple outcomes or
+    re-evaluations while the original model output stays intact.
+    """
+
+    __tablename__ = "prediction_outcomes"
+    __table_args__ = (
+        UniqueConstraint(
+            "prediction_id",
+            "maintenance_event_id",
+            name="uq_prediction_outcomes_prediction_event",
+        ),
+        CheckConstraint("cycle > 0", name="positive_cycle"),
+        CheckConstraint("realized_rul >= 0", name="non_negative_realized_rul"),
+        Index("ix_prediction_outcomes_asset", "asset_id"),
+        Index("ix_prediction_outcomes_event", "maintenance_event_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    prediction_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("predictions.id", ondelete="RESTRICT"), nullable=False
+    )
+    maintenance_event_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("maintenance_events.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    asset_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assets.id", ondelete="RESTRICT"), nullable=False
+    )
+    cycle: Mapped[int] = mapped_column(Integer, nullable=False)
+    realized_rul: Mapped[int] = mapped_column(Integer, nullable=False)
+    labeled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    prediction: Mapped[Prediction] = relationship()
+    maintenance_event: Mapped[MaintenanceEvent] = relationship()
 
 
 class PipelineRun(CreatedAtMixin, Base):

@@ -13,6 +13,8 @@ from turbine_guard.database.enums import (
     MaintenanceEventType,
     PipelineRunStatus,
     PipelineRunType,
+    ReplayMode,
+    ReplayRunStatus,
     RiskLevel,
 )
 
@@ -230,6 +232,58 @@ class NewDriftReport:
         if any(value < 0 for value in values):
             raise ValueError("Drift distances must be non-negative.")
         _enum_member(self.status, DriftStatus, "status")
+
+
+@dataclass(frozen=True)
+class NewReplayRun:
+    dataset_name: str
+    dataset_subset: str
+    source_asset_id: int
+    external_asset_id: str
+    final_cycle: int
+    mode: ReplayMode
+    cycle_delay_seconds: float
+    simulated_cycle_duration_seconds: float
+    replay_started_at: datetime
+    attempt: int = 1
+    status: ReplayRunStatus = ReplayRunStatus.CREATED
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        _required(self.dataset_name, "dataset_name")
+        _required(self.dataset_subset, "dataset_subset")
+        _required(self.external_asset_id, "external_asset_id")
+        if self.source_asset_id <= 0 or self.final_cycle <= 0 or self.attempt < 1:
+            raise ValueError("source_asset_id, final_cycle, and attempt must be positive.")
+        _finite(
+            (self.cycle_delay_seconds, self.simulated_cycle_duration_seconds),
+            "replay timing values",
+        )
+        if self.cycle_delay_seconds < 0 or self.simulated_cycle_duration_seconds <= 0:
+            raise ValueError(
+                "cycle_delay_seconds must be non-negative and "
+                "simulated_cycle_duration_seconds positive."
+            )
+        _aware(self.replay_started_at, "replay_started_at")
+        _enum_member(self.mode, ReplayMode, "mode")
+        _enum_member(self.status, ReplayRunStatus, "status")
+
+
+@dataclass(frozen=True)
+class NewPredictionOutcome:
+    prediction_id: uuid.UUID
+    maintenance_event_id: uuid.UUID
+    asset_id: uuid.UUID
+    cycle: int
+    realized_rul: int
+    labeled_at: datetime
+
+    def __post_init__(self) -> None:
+        if self.cycle <= 0:
+            raise ValueError("cycle must be positive.")
+        if self.realized_rul < 0:
+            raise ValueError("realized_rul must be non-negative.")
+        _aware(self.labeled_at, "labeled_at")
 
 
 @dataclass(frozen=True)

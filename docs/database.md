@@ -69,6 +69,14 @@ is unavailable. There is deliberately no duplicated local model-registry table.
   JSONB detail and model/window index.
 * `pipeline_runs`: ingestion/monitoring/retraining/backfill/promotion types; constrained lifecycle;
   terminal finish and failed-error checks; status/time and type/time indexes.
+* `replay_runs` (Loop 8, revision `20260713_0002`): durable replay progress and phase state —
+  source dataset/subset/asset and attempt (unique together), unique operational external asset ID,
+  replay-internal final cycle, last confirmed cycle bounded by it, constrained status/mode,
+  paired advance-lease fields, failure-event/backfill/evaluation stamps, error text, and JSONB
+  configuration metadata; status and source-asset indexes. No prediction endpoint reads it.
+* `prediction_outcomes` (Loop 8): realized delayed labels — unique
+  `(prediction_id, maintenance_event_id)`, non-negative realized RUL, restrictive foreign keys to
+  predictions, maintenance events, and assets; asset and event indexes. Predictions stay immutable.
 
 All operational foreign keys are restrictive. No asset or reading deletion cascades into history.
 All timestamps are timezone-aware. Command objects reject naive timestamps and non-finite values

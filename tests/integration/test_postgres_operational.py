@@ -7,6 +7,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import Engine, inspect, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
@@ -93,6 +94,8 @@ def test_migration_is_current_and_schema_has_expected_constraints(postgres_engin
         "model_evaluations",
         "drift_reports",
         "pipeline_runs",
+        "replay_runs",
+        "prediction_outcomes",
     }
     inspector = inspect(postgres_engine)
     assert check_database_connection(postgres_engine) is True
@@ -101,9 +104,11 @@ def test_migration_is_current_and_schema_has_expected_constraints(postgres_engin
     index_names = {item["name"] for item in inspector.get_indexes("predictions")}
     assert "uq_sensor_readings_asset_cycle" in unique_names
     assert "ix_predictions_asset_timestamp" in index_names
+    alembic_config = Config("alembic.ini")
+    head = ScriptDirectory.from_config(alembic_config).get_current_head()
     with postgres_engine.connect() as connection:
-        assert MigrationContext.configure(connection).get_current_revision() == "20260712_0001"
-    command.check(Config("alembic.ini"))
+        assert MigrationContext.configure(connection).get_current_revision() == head
+    command.check(alembic_config)
 
 
 def test_asset_sensor_and_prediction_idempotency_and_queries(db_session: Session) -> None:

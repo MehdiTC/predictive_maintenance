@@ -87,6 +87,23 @@ class Settings(BaseSettings):
     cors_allowed_origins: tuple[str, ...] = ()
     trusted_hosts: tuple[str, ...] = ("localhost", "127.0.0.1", "testserver")
 
+    replay_api_base_url: str = "http://127.0.0.1:8000"
+    """Base URL of the running Loop 7 inference API the replay client targets."""
+
+    replay_cycle_delay_seconds: float = 1.0
+    """Default wait between cycles in continuous replay mode."""
+
+    replay_simulated_cycle_duration_seconds: float = 1.0
+    """Simulated wall-clock length of one C-MAPSS cycle (a documented simulation
+    assumption, not a claim that one cycle equals any real duration)."""
+
+    replay_lease_seconds: int = 120
+    """How long one worker's advance claim on a replay run stays exclusive."""
+
+    replay_http_timeout_seconds: float = 30.0
+    replay_max_send_attempts: int = 5
+    replay_retry_backoff_seconds: float = 0.5
+
     @field_validator("environment", mode="before")
     @classmethod
     def _normalize_environment(cls, value: object) -> object:
@@ -183,6 +200,35 @@ class Settings(BaseSettings):
     def _non_empty_host_values(cls, value: tuple[str, ...]) -> tuple[str, ...]:
         if any(not item.strip() for item in value):
             raise ValueError("CORS origins and trusted hosts must not contain empty values.")
+        return value
+
+    @field_validator("replay_api_base_url")
+    @classmethod
+    def _replay_base_url(cls, value: str) -> str:
+        normalized = value.strip().rstrip("/")
+        if not normalized.startswith(("http://", "https://")):
+            raise ValueError("Replay API base URL must be an http:// or https:// URL.")
+        return normalized
+
+    @field_validator("replay_cycle_delay_seconds", "replay_retry_backoff_seconds")
+    @classmethod
+    def _non_negative_replay_seconds(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("Replay delay and backoff values must be non-negative.")
+        return value
+
+    @field_validator(
+        "replay_simulated_cycle_duration_seconds",
+        "replay_lease_seconds",
+        "replay_http_timeout_seconds",
+        "replay_max_send_attempts",
+    )
+    @classmethod
+    def _positive_replay_value(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError(
+                "Replay duration, lease, timeout, and attempt values must be positive."
+            )
         return value
 
     @model_validator(mode="after")

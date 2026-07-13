@@ -14,7 +14,7 @@
 
 # Active Loop
 
-None. Loops 0–7 are complete. Loop 8 must not begin without explicit approval.
+None. Loops 0–8 are complete. Loop 9 must not begin without explicit approval.
 
 ---
 
@@ -327,17 +327,42 @@ Do not implement:
 
 ## Loop 8 — Replay and Delayed Feedback
 
-**Status:** Not started
+**Status:** Complete and validated (2026-07-13) — awaiting review before Loop 9
 
-* [ ] Build held-out trajectory replay.
-* [ ] Add configurable replay speed.
-* [ ] Reveal only current and historical cycles.
-* [ ] Emit maintenance or failure outcomes.
-* [ ] Backfill labels after outcomes become available.
-* [ ] Join historical predictions to realized outcomes.
-* [ ] Add a complete lifecycle integration test.
-* [ ] Verify that inference cannot access future data.
-* [ ] Validate Loop 8 acceptance criteria.
+* [x] Build held-out trajectory replay. (Checksum-verified Loop 3 replay split only; wrong-split,
+  missing, tampered, non-contiguous, and non-finite sources rejected before any send.)
+* [x] Add configurable replay speed. (Step, continuous with configurable delay, accelerated;
+  `--max-cycles`; pause/stop/resume; typed `TURBINE_GUARD_REPLAY_*` settings.)
+* [x] Reveal only current and historical cycles. (One `SensorReadingRequest` per cycle through the
+  real `POST /v1/sensor-readings` contract; final cycle stored only in `replay_runs`, which no
+  prediction endpoint reads.)
+* [x] Emit maintenance or failure outcomes. (Idempotent `failure` event via the existing
+  repository with external event ID `replay-run:<run_id>:failure`, only after the final reading is
+  verified persisted; API endpoint deliberately deferred — ADR 0007.)
+* [x] Backfill labels after outcomes become available. (`prediction_outcomes` table, Alembic
+  `20260713_0002`; `realized_rul = T − t`; validated invariants; idempotent; conflict detection;
+  predictions immutable.)
+* [x] Join historical predictions to realized outcomes. (Delayed evaluation reusing Loop 4
+  metrics/alerts/interval code, grouped by stored model version; per-asset and aggregate rows in
+  `model_evaluations` with scope `replay`.)
+* [x] Add a complete lifecycle integration test. (Guarded PostgreSQL + HTTP tests: full lifecycle,
+  uncertain-outcome recovery, partial-phase resume, force restart, outcome idempotency/conflict,
+  optional real-FD001 replay with the registered champion.)
+* [x] Verify that inference cannot access future data. (Unit and integration tests: payload key
+  allowlist, in-order sends, future-source-mutation immunity, no event/labels before the final
+  cycle, early predictions unchanged after completion.)
+* [x] Add durable replay state, lease-based concurrency, and crash recovery. (Claim lease with no
+  lock across HTTP; resume from the earliest incomplete phase; repeated commands idempotent;
+  documented force restart.)
+* [x] Add replay CLI, structured logs, and low-cardinality Prometheus metrics.
+* [x] Add ADR 0007 and `docs/replay.md`; update README, `.env.example`, `docs/database.md`, and
+  `docs/online_inference.md`.
+* [x] Validate Loop 8 acceptance criteria. (All quality gates and pre-commit pass; 364 tests
+  including six real-PostgreSQL replay integration tests and a real-FD001 champion replay;
+  migration `20260713_0002` applied and current; live 201-cycle replay of held-out engine 9 with
+  exactly-once failure event, correct label backfill, per-asset and aggregate evaluations,
+  idempotent restart and aggregate re-run; `already_built`/`already_trained` integrity; no Loop 9
+  code.)
 
 ---
 

@@ -2146,6 +2146,7 @@ source = { editable = "." }
 dependencies = [
     { name = "alembic" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "joblib" },
     { name = "mlflow" },
     { name = "pandas" },
@@ -2162,7 +2163,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx" },
     { name = "ipykernel" },
     { name = "matplotlib" },
     { name = "mypy" },
@@ -2178,6 +2178,7 @@ dev = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.14,<2" },
     { name = "fastapi", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "joblib", specifier = ">=1.4" },
     { name = "mlflow", specifier = ">=3.5,<4" },
     { name = "pandas", specifier = ">=2.2" },
@@ -2194,7 +2195,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "httpx", specifier = ">=0.27" },
     { name = "ipykernel", specifier = ">=6.29" },
     { name = "matplotlib", specifier = ">=3.9" },
     { name = "mypy", specifier = ">=1.13" },
