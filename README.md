@@ -8,9 +8,11 @@ A production-style predictive-maintenance ML platform for turbine and rotating-e
 
 The project is built in bounded implementation loops (see [PROJECT_SPEC.md](PROJECT_SPEC.md) for the full design, [STATUS.md](STATUS.md) for current state, and [TASKS.md](TASKS.md) for the loop plan).
 
-**Loops 0–7 are complete and validated**. The versioned API connects strict sensor contracts to
-atomic PostgreSQL persistence, the shared feature builder, and the cached MLflow champion. Replay
-and delayed feedback remain outside this loop.
+**Loops 0–10 are implemented**. The API, PostgreSQL, MLflow, explicit bootstrap, lifecycle worker,
+and held-out replay now share one non-root production image and a health-ordered Compose topology.
+GitHub Actions covers Python quality, real PostgreSQL migrations/integration, local MLflow, image
+contracts, and a deterministic end-to-end API smoke test. Public deployment and the dashboard are
+Loop 11 and are not implemented.
 
 ## What the finished system will do
 
@@ -24,6 +26,7 @@ and delayed feedback remain outside this loop.
 ## Requirements
 
 * [uv](https://docs.astral.sh/uv/) — manages Python 3.12 and all dependencies automatically.
+* Docker with Compose v2 — required only for the multi-service local stack and container checks.
 
 Install uv on macOS:
 
@@ -42,6 +45,27 @@ uv sync                # creates .venv with Python 3.12 and installs everything
 cp .env.example .env   # optional: local settings overrides
 make hooks             # optional: install pre-commit hooks
 ```
+
+## Containerized stack
+
+A clean Docker volume needs one explicit, idempotent champion bootstrap before API readiness can
+pass:
+
+```bash
+cp .env.example .env
+docker compose build
+docker compose up -d --wait postgres mlflow
+docker compose --profile bootstrap run --rm bootstrap
+docker compose up -d --wait api
+```
+
+Normal restarts then use `make docker-up`; `make docker-down` preserves all named volumes. MLflow is
+at <http://127.0.0.1:5000>, API docs at <http://127.0.0.1:8000/docs>, and readiness proves the
+database, champion, and feature contract rather than merely checking the process. Worker and replay
+are explicit profiles, so startup never retrains/promotes or streams a full trajectory.
+
+See [docs/containers.md](docs/containers.md) for services, network flow, bootstrap, profiles,
+volumes, migrations, replay/worker commands, reset safety, CI-equivalent checks, and troubleshooting.
 
 ## Running the API
 
@@ -244,6 +268,15 @@ registry semantics, loading commands, remote-store configuration, and limitation
 | `make db-test`     | Run guarded PostgreSQL integration tests    |
 | `make eda`          | Execute the EDA notebook top to bottom     |
 | `make hooks`        | Install pre-commit hooks                   |
+| `make docker-build` | Build the reusable production image        |
+| `make docker-up`    | Start infrastructure, migrations, and API  |
+| `make docker-down`  | Stop the stack and preserve named volumes  |
+| `make docker-migrate` | Apply migrations through the owner service |
+| `make docker-bootstrap` | Explicitly create/register the champion |
+| `make docker-worker` | Run one safe monitoring window            |
+| `make docker-replay-status` | Inspect replay state without starting it |
+| `make docker-test`  | Verify image contracts and shutdown        |
+| `make docker-smoke` | Run the isolated deterministic stack smoke |
 
 ## Configuration
 
@@ -263,6 +296,8 @@ Settings are typed (`pydantic-settings`) and loaded from environment variables w
 | `TURBINE_GUARD_DATABASE_TEST_URL` | unset | Dedicated integration DB; name must contain `test` |
 | `TURBINE_GUARD_ONLINE_INFERENCE_ENABLED` | `true` | Enable `/v1` resources and routes |
 | `TURBINE_GUARD_MODEL_PRELOAD_ENABLED` | `true` | Warm and verify champion during lifespan |
+| `TURBINE_GUARD_API_HOST` | `127.0.0.1` | API bind host (`0.0.0.0` in Compose) |
+| `TURBINE_GUARD_API_PORT` | `8000` | API bind and published Compose port |
 | `TURBINE_GUARD_ASSET_STALE_AFTER_SECONDS` | `300` | Asset-health staleness threshold |
 | `TURBINE_GUARD_CORS_ALLOWED_ORIGINS` | `[]` | Explicit origins; disabled by default |
 | `TURBINE_GUARD_TRUSTED_HOSTS` | local/test hosts | Explicit host allowlist |
@@ -385,7 +420,10 @@ phase recovery, every CLI operation, and limitations.
 │   ├── online_inference.md
 │   ├── replay.md
 │   ├── monitoring.md
+│   ├── containers.md
 │   └── adr/
+├── Dockerfile / compose.yaml / .dockerignore
+├── .github/workflows/ci.yml
 ├── tests/
 │   ├── conftest.py
 │   ├── unit/

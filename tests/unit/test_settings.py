@@ -37,6 +37,8 @@ def test_defaults() -> None:
     assert settings.model_preload_enabled is True
     assert settings.api_default_page_size == 50
     assert settings.api_max_page_size == 200
+    assert settings.api_host == "127.0.0.1"
+    assert settings.api_port == 8000
     assert settings.cors_allowed_origins == ()
     assert settings.monitoring_window_days == 30
     assert settings.retraining_min_new_assets == 5
@@ -87,11 +89,15 @@ def test_operational_database_settings_are_separate_from_mlflow(
 def test_online_settings_read_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TURBINE_GUARD_ONLINE_INFERENCE_ENABLED", "false")
     monkeypatch.setenv("TURBINE_GUARD_MODEL_PRELOAD_ENABLED", "false")
+    monkeypatch.setenv("TURBINE_GUARD_API_HOST", "0.0.0.0")
+    monkeypatch.setenv("TURBINE_GUARD_API_PORT", "8080")
     monkeypatch.setenv("TURBINE_GUARD_CORS_ALLOWED_ORIGINS", '["https://example.test"]')
     monkeypatch.setenv("TURBINE_GUARD_TRUSTED_HOSTS", '["api.example.test"]')
     settings = Settings()
     assert settings.online_inference_enabled is False
     assert settings.model_preload_enabled is False
+    assert settings.api_host == "0.0.0.0"
+    assert settings.api_port == 8080
     assert settings.cors_allowed_origins == ("https://example.test",)
     assert settings.trusted_hosts == ("api.example.test",)
 
@@ -99,6 +105,10 @@ def test_online_settings_read_environment(monkeypatch: pytest.MonkeyPatch) -> No
 def test_online_page_limits_are_validated() -> None:
     with pytest.raises(ValidationError, match="must not exceed"):
         Settings(api_default_page_size=100, api_max_page_size=50)
+    with pytest.raises(ValidationError, match="API host"):
+        Settings(api_host=" ")
+    with pytest.raises(ValidationError, match="65535"):
+        Settings(api_port=65_536)
 
 
 def test_lifecycle_thresholds_are_validated() -> None:

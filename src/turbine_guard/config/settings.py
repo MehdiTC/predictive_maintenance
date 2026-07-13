@@ -84,6 +84,8 @@ class Settings(BaseSettings):
     api_prediction_trend_size: int = 20
     api_max_request_bytes: int = 1_048_576
     api_docs_enabled: bool = True
+    api_host: str = "127.0.0.1"
+    api_port: int = 8000
     cors_allowed_origins: tuple[str, ...] = ()
     trusted_hosts: tuple[str, ...] = ("localhost", "127.0.0.1", "testserver")
 
@@ -221,12 +223,21 @@ class Settings(BaseSettings):
         "api_max_page_size",
         "api_prediction_trend_size",
         "api_max_request_bytes",
+        "api_port",
     )
     @classmethod
     def _positive_online_integer(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("Online API limits and time thresholds must be positive.")
         return value
+
+    @field_validator("api_host")
+    @classmethod
+    def _non_empty_api_host(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("API host must not be empty.")
+        return normalized
 
     @field_validator("cors_allowed_origins", "trusted_hosts")
     @classmethod
@@ -323,6 +334,8 @@ class Settings(BaseSettings):
             raise ValueError("Default API page size must not exceed the maximum.")
         if self.api_max_page_size > 200:
             raise ValueError("Loop 7 API page size cannot exceed 200.")
+        if self.api_port > 65_535:
+            raise ValueError("API port must not exceed 65535.")
         if self.monitoring_psi_warning > self.monitoring_psi_detected:
             raise ValueError("PSI warning threshold cannot exceed the detected threshold.")
         return self

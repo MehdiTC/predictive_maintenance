@@ -1,0 +1,171 @@
+name: turbine-guard
+
+x-application: &application
+  image: ${TURBINE_GUARD_IMAGE:-turbine-guard:local}
+  environment: &application-environment
+    TURBINE_GUARD_ENVIRONMENT: ${TURBINE_GUARD_ENVIRONMENT:-production}
+    TURBINE_GUARD_LOG_LEVEL: ${TURBINE_GUARD_LOG_LEVEL:-INFO}
+    TURBINE_GUARD_DATA_DIR: /var/lib/turbine-guard
+    TURBINE_GUARD_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-turbine_guard}:${POSTGRES_PASSWORD:-turbine_guard_local}@postgres:5432/${POSTGRES_DB:-turbine_guard}
+    TURBINE_GUARD_MLFLOW_TRACKING_URI: http://mlflow:5000
+    TURBINE_GUARD_MLFLOW_ARTIFACT_LOCATION: mlflow-artifacts:/turbine-guard
+    TURBINE_GUARD_MLFLOW_EXPERIMENT_NAME: ${TURBINE_GUARD_MLFLOW_EXPERIMENT_NAME:-TurbineGuard-FD001-Offline-Modeling}
+    TURBINE_GUARD_MLFLOW_REGISTERED_MODEL_NAME: ${TURBINE_GUARD_MLFLOW_REGISTERED_MODEL_NAME:-TurbineGuard-FD001-RUL}
+    TURBINE_GUARD_MLFLOW_REGISTRATION_ENABLED: ${TURBINE_GUARD_MLFLOW_REGISTRATION_ENABLED:-true}
+    TURBINE_GUARD_MLFLOW_PROMOTE_CHAMPION: ${TURBINE_GUARD_MLFLOW_PROMOTE_CHAMPION:-true}
+    TURBINE_GUARD_API_HOST: 0.0.0.0
+    TURBINE_GUARD_API_PORT: ${TURBINE_GUARD_API_PORT:-8000}
+    TURBINE_GUARD_TRUSTED_HOSTS: '["localhost","127.0.0.1","api","testserver"]'
+    TURBINE_GUARD_REPLAY_API_BASE_URL: http://api:${TURBINE_GUARD_API_PORT:-8000}
+    TURBINE_GUARD_REPLAY_CYCLE_DELAY_SECONDS: ${TURBINE_GUARD_REPLAY_CYCLE_DELAY_SECONDS:-1.0}
+    TURBINE_GUARD_REPLAY_SIMULATED_CYCLE_DURATION_SECONDS: ${TURBINE_GUARD_REPLAY_SIMULATED_CYCLE_DURATION_SECONDS:-1.0}
+    TURBINE_GUARD_REPLAY_LEASE_SECONDS: ${TURBINE_GUARD_REPLAY_LEASE_SECONDS:-120}
+    TURBINE_GUARD_REPLAY_HTTP_TIMEOUT_SECONDS: ${TURBINE_GUARD_REPLAY_HTTP_TIMEOUT_SECONDS:-30}
+    TURBINE_GUARD_REPLAY_MAX_SEND_ATTEMPTS: ${TURBINE_GUARD_REPLAY_MAX_SEND_ATTEMPTS:-5}
+    TURBINE_GUARD_REPLAY_RETRY_BACKOFF_SECONDS: ${TURBINE_GUARD_REPLAY_RETRY_BACKOFF_SECONDS:-0.5}
+  restart: "no"
+  init: true
+
+services:
+  postgres:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-turbine_guard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-turbine_guard_local}
+      POSTGRES_DB: ${POSTGRES_DB:-turbine_guard}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready --username "$${POSTGRES_USER}" --dbname "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  mlflow:
+    <<: *application
+    command:
+      - mlflow
+      - server
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5000"
+      - --allowed-hosts
+      - mlflow,mlflow:*,localhost,localhost:*,127.0.0.1,127.0.0.1:*
+      - --backend-store-uri
+      - ${MLFLOW_BACKEND_STORE_URI:-sqlite:////var/lib/mlflow/mlflow.db}
+      - --artifacts-destination
+      - /mlartifacts
+      - --serve-artifacts
+    environment:
+      <<: *application-environment
+      MLFLOW_BACKEND_STORE_URI: ${MLFLOW_BACKEND_STORE_URI:-sqlite:////var/lib/mlflow/mlflow.db}
+      MLFLOW_ENABLE_PROXY_MULTIPART_UPLOAD: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${MLFLOW_PORT:-5000}:5000"
+    volumes:
+      - mlflow_metadata:/var/lib/mlflow
+      - mlflow_artifacts:/mlartifacts
+    healthcheck:
+      test: ["CMD", "python", "scripts/healthcheck.py", "mlflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 20s
+    restart: unless-stopped
+
+  migrate:
+    <<: *application
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *application
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "scripts/run_api.py"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "${TURBINE_GUARD_API_PORT:-8000}:${TURBINE_GUARD_API_PORT:-8000}"
+    volumes:
+      - turbine_guard_data:/var/lib/turbine-guard:ro
+    healthcheck:
+      test: ["CMD", "python", "scripts/healthcheck.py", "api"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+    restart: unless-stopped
+    stop_grace_period: 35s
+
+  worker:
+    <<: *application
+    profiles: ["ops"]
+    entrypoint: ["python", "scripts/model_lifecycle.py"]
+    command: ["monitor"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - turbine_guard_data:/var/lib/turbine-guard
+
+  replay:
+    <<: *application
+    profiles: ["replay"]
+    entrypoint: ["python", "scripts/replay_sensor_data.py"]
+    command: ["status", "--all"]
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - turbine_guard_data:/var/lib/turbine-guard:ro
+
+  bootstrap:
+    <<: *application
+    profiles: ["bootstrap"]
+    entrypoint: ["python", "scripts/bootstrap.py"]
+    command: []
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    volumes:
+      - turbine_guard_data:/var/lib/turbine-guard
+
+  bootstrap-ci:
+    <<: *application
+    profiles: ["ci"]
+    entrypoint: ["python", "scripts/bootstrap.py"]
+    command: ["--ci-fixture"]
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    volumes:
+      - turbine_guard_data:/var/lib/turbine-guard
+
+volumes:
+  postgres_data:
+  mlflow_metadata:
+  mlflow_artifacts:
+  turbine_guard_data:

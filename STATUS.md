@@ -3,15 +3,15 @@
 ## Project Status
 
 **Project:** TurbineGuard
-**Current phase:** Loop 9 complete and validated
-**Active loop:** None — awaiting review before Loop 10
-**Overall status:** Production lifecycle monitoring, structured retraining decisions, leakage-safe
-candidate fitting, same-holdout champion comparison, blocking promotion gates, explicit approval,
-safe MLflow alias promotion/rollback, serving-cache refresh, and phase-based recovery are
-implemented and documented (ADR 0008, `docs/monitoring.md`). All requested quality gates and 398
-tests pass with real PostgreSQL and local MLflow enabled; migration `20260713_0003` is at head.
-The live champion remained v1 because the available one newly labeled asset is correctly below the
-five-asset/two-holdout safety thresholds. No Loop 10 functionality exists.
+**Current phase:** Loop 10 complete and validated
+**Active loop:** None — awaiting review before Loop 11
+**Overall status:** TurbineGuard now has one locked, non-root Python 3.12 application image; a
+production-style Compose topology for PostgreSQL, MLflow, migrations, API, monitoring worker,
+replay, and explicit bootstrap; real dependency-aware health checks; and GitHub Actions for Python
+quality, PostgreSQL migration/integration, local MLflow, image contracts, and API smoke testing.
+All 402 tests pass across the generic and real-PostgreSQL runs, the final image and isolated
+Compose persistence smoke pass, and migration `20260713_0003` is at head. No Loop 11 dashboard or
+public-deployment functionality exists.
 **Last updated:** 2026-07-13
 
 ---
@@ -47,7 +47,7 @@ See `PROJECT_SPEC.md` for the complete design.
 
 ## Current Repository State
 
-Loops 0–9 are complete and validated:
+Loops 0–10 are complete and validated:
 
 ```text
 ├── src/turbine_guard/
@@ -76,8 +76,12 @@ Loops 0–9 are complete and validated:
 │   │                           #   orchestrator, realized labels, delayed evaluation, CLI
 │   ├── monitoring/             # Loop 9: reports, decisions, safe data split, candidate,
 │   │                           #   gates, durable lifecycle service, CLI
+│   ├── bootstrap.py            # explicit/idempotent production + deterministic CI bootstrap
 │   ├── services/health.py
 │   └── logging_config.py       # structured JSON logging
+├── Dockerfile / compose.yaml   # reusable image and local multi-service topology
+├── .github/workflows/ci.yml    # quality, PostgreSQL, MLflow, image, and API smoke jobs
+├── scripts/docker_smoke.sh     # isolated end-to-end container/volume persistence validation
 ├── scripts/download_data.py     # thin wrappers over turbine_guard CLIs
 ├── scripts/process_data.py
 ├── scripts/build_features.py
@@ -119,14 +123,15 @@ data/
 Loop 4 model artifacts remain under `data/models/cmapss/FD001/`. Optional Loop 5 runtime state uses
 `data/mlflow/` by default and remains gitignored. PostgreSQL operational persistence is implemented
 under `database/` and Alembic (through revision `20260713_0003`). Loop 7 serves the online API,
-Loop 8 adds replay/delayed feedback, and Loop 9 adds lifecycle monitoring and promotion. Docker,
-deployment, distributed orchestration, and other Loop 10 functionality remain absent deliberately.
+Loop 8 adds replay/delayed feedback, Loop 9 adds lifecycle monitoring and promotion, and Loop 10
+adds the reusable production image, Compose topology, explicit bootstrap, and CI. Public
+deployment, distributed orchestration, and the dashboard remain absent deliberately.
 
 ---
 
 ## Current Loop
 
-Loop 9 is complete and validated. Do not begin Loop 10 without explicit approval.
+Loop 10 is complete and validated. Do not begin Loop 11 without explicit approval.
 
 ---
 
@@ -146,6 +151,53 @@ Loop 9 is complete and validated. Do not begin Loop 10 without explicit approval
   (2026-07-13).
 * [x] Implemented and validated Loop 9 — monitoring, retraining, candidate evaluation, and model
   promotion (2026-07-13).
+* [x] Implemented and validated Loop 10 — containers and CI/CD (2026-07-13).
+
+---
+
+## Loop 10 Implementation Notes
+
+1. **Reusable image.** One multi-stage `Dockerfile` uses Python 3.12 slim and pinned uv, installs
+   `uv.lock` with `--locked --no-dev --no-editable`, and runs every application command as numeric
+   user/group `10001:10001`. `.dockerignore` excludes secrets, source state, tests, docs, and local
+   generated data. The installed wheel—not editable behavior—provides imports.
+2. **Compose topology.** `postgres`, `mlflow`, one-shot `migrate`, `api`, profile-gated `worker`,
+   `replay`, `bootstrap`, and `bootstrap-ci` share an explicit network. Only `api` declares the
+   build; all Python services reuse the same image. No default source bind mount exists.
+3. **State boundary.** PostgreSQL 17 owns only TurbineGuard operational state. MLflow 3.14 metadata
+   uses a distinct persistent SQLite volume because that locked release binds its PostgreSQL
+   registered-model version lookup as text against an integer column; PostgreSQL correctly rejects
+   it. MLflow artifacts and generated project data also have distinct named volumes.
+4. **Migration ownership.** The one-shot `migrate` service is the sole Alembic owner. API and worker
+   wait for its successful completion; no long-running process races migrations.
+5. **Bootstrap.** Normal startup never trains or promotes. The explicit idempotent bootstrap runs
+   acquisition → processing → 552-feature build → established model training → MLflow
+   registration/champion assignment. CI substitutes a deterministic miniature offline archive and
+   bounded four-family candidates without weakening production loaders or readiness contracts.
+6. **Health.** PostgreSQL uses `pg_isready`; MLflow uses `/health`; API health invokes
+   `/health/ready` and requires nonempty successful database, champion-model, and feature-contract
+   checks. Liveness remains separately available at `/health/live`.
+7. **Worker and replay.** The `ops` worker defaults to one Loop 9 monitoring window and never
+   retrains/promotes automatically. Replay's `replay` profile defaults to read-only `status --all`;
+   start, step, resume, and accelerated behavior are explicit operator commands.
+8. **Environment and operations.** `.env.example` has safe PostgreSQL, MLflow, API, replay,
+   environment, and logging examples. Make targets cover build/up/down/logs/migrate/bootstrap,
+   worker, replay status, image contract, and isolated smoke checks.
+9. **CI.** Four jobs cover full Python quality/tests, real PostgreSQL migration reversal and all
+   guarded integrations, focused temporary local MLflow registry tests, and a BuildKit-cached
+   production-image/Compose smoke. CI runs on pull requests and pushes to `main` with pinned action
+   majors and no external NASA or persistent service dependency.
+10. **Container contracts.** Image validation proves non-root configuration, package/API imports,
+    migration/replay/lifecycle/bootstrap entry points, service-name URL parsing, liveness, and clean
+    SIGTERM shutdown. The isolated smoke proves healthy dependencies, champion registration,
+    migration, readiness, docs, metrics, versioned ingestion, profile CLIs, restart persistence,
+    and clean teardown.
+11. **Documentation/decision record.** `docs/containers.md` documents the architecture, volumes,
+    bootstrap/startup, operations, resets, troubleshooting, and limitations; ADR 0009 records the
+    image, state, migration, profile, bootstrap, and CI-fixture decisions.
+12. **Validation.** `uv sync`, Ruff, strict Mypy, full pytest, all 17 real-PostgreSQL integrations,
+    pre-commit, `git diff --check`, Compose rendering, final image build/contract, and the isolated
+    Compose smoke all pass. The 696 MB image size reflects the locked scientific/ML runtime.
 
 ---
 
@@ -500,8 +552,7 @@ Loop 9 is complete and validated. Do not begin Loop 10 without explicit approval
 
 ### Implemented so far
 
-Loops 0–9 are complete and validated. Containerization, CI/CD, deployment, and dashboard work
-remain design-only.
+Loops 0–10 are complete and validated. Public deployment and dashboard work remain design-only.
 
 ---
 
@@ -527,16 +578,21 @@ remain design-only.
     replay coverage is empirical evidence, not a strict trajectory-level exchangeability guarantee.
 14. Loop 9 freezes the champion conformal calibrator for retrained candidates because no new
     calibration role is available; poor promotion-holdout coverage blocks promotion.
-15. The default local SQLite MLflow registry and serving-model cache are process-local operational
-    constraints; multi-process refresh coordination is deferred beyond Loop 9.
+15. MLflow metadata remains single-host SQLite in both host and Compose modes; Compose makes it
+    persistent and service-owned, but it is not a high-availability registry. Serving-model cache
+    refresh remains per API process.
 16. Loop 7 stores accepted readings, not a durable rejected-request stream, so the data-quality
     report can only count rejected inputs when its producer supplies them explicitly.
+17. The locked MLflow 3.14 server has a PostgreSQL registered-model version type mismatch, so Loop
+    10 deliberately uses a separate SQLite metadata volume rather than patching dependency code.
+18. The production application image is about 696 MB because `uv.lock` includes the scientific and
+    model runtime; future size work must preserve locked reproducibility and all model families.
 
 ---
 
 ## Immediate Next Action
 
-Review and commit Loop 9. Do not begin Loop 10 without explicit approval.
+Review and commit Loop 10. Do not begin Loop 11 without explicit approval.
 
 ---
 
@@ -574,6 +630,29 @@ Review and commit Loop 9. Do not begin Loop 10 without explicit approval.
 ---
 
 ## Validation Status
+
+All Loop 10 commands run on 2026-07-13 (macOS, Docker Desktop 28.3.0, PostgreSQL 17, Python
+3.12.13):
+
+| Check | Status | Detail |
+| --- | --- | --- |
+| `uv sync` | Pass | 168 packages resolved / 163 checked; no dependency added |
+| Ruff format/lint | Pass | 160 files already formatted; all checks passed |
+| Mypy (strict) | Pass | No issues in 90 source files |
+| Pytest (generic) | Pass | 385 passed, 17 guarded PostgreSQL tests skipped, 402 collected |
+| PostgreSQL integration | Pass | Fresh PostgreSQL 17 test DB; all 17 guarded tests passed |
+| Migration reversal | Pass | Empty upgrade to `20260713_0003`, current/check, downgrade base, re-upgrade/current |
+| Pre-commit | Pass | Ruff format, Ruff lint, and Mypy hooks passed |
+| Compose render | Pass | Default and bootstrap/ops/replay/ci profiles render successfully |
+| Production image | Pass | Multi-stage build; configured `10001:10001`; 696,322,505 bytes |
+| Container contract | Pass | Imports, Alembic, replay/lifecycle/bootstrap CLIs, service URLs, liveness, graceful SIGTERM |
+| Compose health | Pass | PostgreSQL and MLflow healthy; API database/model/feature readiness all true |
+| API smoke | Pass | Live, ready, docs, metrics, deterministic versioned ingestion (`201`, then idempotent `200`) |
+| Profile commands | Pass | Worker lifecycle status and replay status invoked from the shared image |
+| Persistence/shutdown | Pass | PostgreSQL/MLflow/API restart retained version/state/data; isolated stack shut down cleanly |
+| Diff hygiene | Pass | `git diff --check` clean |
+| Loop 0–9 regression | Pass | Generic suite plus all real PostgreSQL, FD001, MLflow, API, replay, and lifecycle checks green |
+| Loop 11 boundary | Pass | No dashboard, frontend, public deployment, TLS/domain, auth, or cloud infrastructure added |
 
 All Loop 9 commands run on 2026-07-13 (macOS, PostgreSQL 17, Python 3.12.13):
 
@@ -717,11 +796,11 @@ WSGI bridge. Tests, registered-model loading, prediction equality, and the UI al
 
 ## Last Completed Loop
 
-**Loop 9 — Monitoring, Retraining, Candidate Evaluation, and Model Promotion** (2026-07-13).
+**Loop 10 — Containers and CI/CD** (2026-07-13).
 
 ---
 
 ## Next Planned Loop
 
-After Loop 9 is reviewed and separately approved: **Loop 10 — Containers and CI/CD**.
+After Loop 10 is reviewed and separately approved: **Loop 11 — Dashboard and Public Deployment**.
 Do not begin it automatically.

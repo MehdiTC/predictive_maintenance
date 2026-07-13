@@ -174,5 +174,6 @@ plus TLS, rate limiting, asset enrollment, secret management, and network contro
 
 Replay, failure feedback, delayed label backfill, and delayed evaluation live in the Loop 8 replay
 subsystem (docs/replay.md), which drives this API as a client. The API itself still implements no
-drift calculations, performance monitoring schedules, retraining, promotion, Prefect, Docker,
-deployment, or dashboard.
+drift calculations, performance monitoring schedules, retraining, promotion, deployment, or
+dashboard. Loop 10 packages this unchanged service contract in Docker Compose; it does not broaden
+the public API.

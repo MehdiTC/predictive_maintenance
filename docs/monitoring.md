@@ -87,8 +87,10 @@ uv run python scripts/model_lifecycle.py refresh-serving-model
 
 ## Limitations
 
-The default MLflow backend is local SQLite and model-cache refresh is per process. No schedule
-runner, distributed lock service, dashboard, container, deployment, or Loop 10 functionality is
-included. Rejected HTTP-request counts are not durably available from the preexisting Loop 7 API;
+Host-only and Compose MLflow metadata use SQLite; Compose provides it as a persistent service-owned
+volume separate from PostgreSQL and the artifact volume. Model-cache refresh remains per API
+process. Loop 10 provides a profile-gated one-shot monitoring worker but no
+schedule runner, distributed lock service, dashboard, or public deployment. Rejected HTTP-request
+counts are not durably available from the preexisting Loop 7 API;
 the quality calculator accepts an explicit count and labels its source. C-MAPSS remains simulated
 public data, and thresholds are demonstration defaults rather than industrial limits.

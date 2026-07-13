@@ -14,7 +14,7 @@
 
 # Active Loop
 
-None. Loops 0–9 are complete and validated. Loop 10 has not started.
+None. Loops 0–10 are complete and validated. Loop 11 has not started.
 
 ---
 
@@ -400,22 +400,35 @@ Do not implement:
 
 ## Loop 10 — Containers and CI/CD
 
-**Status:** Not started
+**Status:** Complete and validated (2026-07-13) — awaiting review before Loop 11
 
-* [ ] Add a production Dockerfile.
-* [ ] Add Docker Compose.
-* [ ] Containerize the API.
-* [ ] Containerize the workflow worker.
-* [ ] Containerize the replay service.
-* [ ] Configure PostgreSQL.
-* [ ] Configure MLflow.
-* [ ] Add service health checks.
-* [ ] Add GitHub Actions.
-* [ ] Run formatting, linting, typing, and tests in CI.
-* [ ] Test migrations in CI.
-* [ ] Build the Docker image in CI.
-* [ ] Run an API smoke test.
-* [ ] Validate Loop 10 acceptance criteria.
+* [x] Add a production Dockerfile. (Python 3.12 slim, pinned uv, locked non-editable wheel,
+  multi-stage build, numeric non-root user, runtime-only dependency group, no mutable state.)
+* [x] Add Docker Compose. (Production-style network, explicit dependencies/profiles, no source
+  bind mounts, four persistent named volumes.)
+* [x] Containerize the API. (Typed Uvicorn entry point, migration/health dependencies, port 8000,
+  real readiness and graceful shutdown.)
+* [x] Containerize the workflow worker. (Profile-gated one-shot Loop 9 `monitor`; no scheduler,
+  automatic retraining, or automatic promotion.)
+* [x] Containerize the replay service. (Profile-gated safe `status --all` default; explicit
+  start/step/resume/accelerated commands documented.)
+* [x] Configure PostgreSQL. (PostgreSQL 17, example local credentials, `pg_isready`, operational
+  database only, persistent volume.)
+* [x] Configure MLflow. (HTTP tracking/registry/artifact proxy; persistent SQLite metadata and
+  artifact volumes; narrow Compose/localhost host allowlist.)
+* [x] Add service health checks. (PostgreSQL, MLflow, and API; API requires database, champion,
+  and exact feature compatibility, not merely a live process.)
+* [x] Add GitHub Actions. (Pull requests and pushes to main; pinned action majors and uv cache.)
+* [x] Run formatting, linting, typing, and tests in CI. (Dedicated Python quality job.)
+* [x] Test migrations in CI. (Empty PostgreSQL upgrade/current/check, complete downgrade/re-upgrade,
+  and all guarded PostgreSQL integration tests.)
+* [x] Build the Docker image in CI. (BuildKit/GHA cache plus non-root, imports, CLI, settings, and
+  signal-shutdown contract checks.)
+* [x] Run an API smoke test. (Offline deterministic champion fixture, migrations, real readiness,
+  docs/metrics/representative ingestion, worker/replay CLIs, dependency restarts, persistence.)
+* [x] Validate Loop 10 acceptance criteria. (402 tests across generic and real-PostgreSQL runs;
+  all quality gates, final image build, image contract, Compose rendering, and isolated stack smoke
+  pass; no Loop 11 code.)
 
 ---
 

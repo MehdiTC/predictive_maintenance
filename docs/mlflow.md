@@ -19,11 +19,13 @@ The default experiment is `TurbineGuard-FD001-Offline-Modeling`; the default reg
 `TurbineGuard-FD001-RUL`. Parent names are
 `fd001-offline-<training-manifest-sha-prefix>`; child names append the candidate ID.
 
-SQLite stores experiment/registry metadata at `data/mlflow/mlflow.db`. Run and model artifacts live
-under `data/mlflow/artifacts`. Both are gitignored. SQLite is deliberately local: it is simple and
-registry-capable, but not a shared concurrent/high-availability backend. A future remote MLflow
-server replaces `TURBINE_GUARD_MLFLOW_TRACKING_URI` and, when needed, the artifact location; modeling
-code does not change.
+Host-only development defaults store experiment/registry metadata in SQLite at
+`data/mlflow/mlflow.db`, with artifacts under `data/mlflow/artifacts`. Compose instead runs an MLflow
+HTTP service with a persistent SQLite metadata volume and a separate proxied filesystem artifact
+volume. The locked MLflow 3.14 registry currently emits a PostgreSQL type-mismatched model-version
+lookup, so the supported single-host Compose backend remains SQLite rather than sharing the
+operational PostgreSQL database. Both modes use the same tracking/artifact configuration; modeling
+code does not change. Neither local topology is high availability.
 
 ## What is logged
 

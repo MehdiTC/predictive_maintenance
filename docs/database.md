@@ -167,5 +167,6 @@ implemented here.
 ## Limitations
 
 Loop 9 provides local phase orchestration but no scheduler or distributed worker. Bulk-copy
-optimization, partitioning, Docker, and deployment do not exist. UUID creation and full sensor
-payload comparison add small overhead appropriate here.
+optimization and partitioning do not exist. Loop 10 supplies a single-host Docker Compose service
+and persistent volume; public deployment, managed backups, and high availability remain
+unimplemented. UUID creation and full sensor payload comparison add small overhead appropriate here.

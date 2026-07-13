@@ -102,7 +102,7 @@ def log_bundle_model(
     metadata: dict[str, Any],
 ) -> ModelInfo:
     """Package a verified Loop 4 bundle using the one established Loop 5 pyfunc contract."""
-    source_root = Path(__file__).resolve().parents[3] / "src"
+    source_root = _packaging_source_root()
     requirements = [
         f"mlflow=={version('mlflow')}",
         f"numpy=={version('numpy')}",
@@ -124,3 +124,12 @@ def log_bundle_model(
             metadata=metadata,
         ),
     )
+
+
+def _packaging_source_root() -> Path:
+    """Find package sources locally or in the image without affecting normal imports."""
+    candidates = (Path(__file__).resolve().parents[3] / "src", Path.cwd() / "src")
+    for candidate in candidates:
+        if (candidate / "turbine_guard" / "__init__.py").is_file():
+            return candidate
+    raise RuntimeError("TurbineGuard source package is unavailable for MLflow model packaging.")

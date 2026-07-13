@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_NO_PROGRESS: "1"
+
+jobs:
+  python-quality:
+    name: Python quality and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --locked
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run mypy src
+      - run: uv run pytest
+
+  postgres-integration:
+    name: PostgreSQL migrations and integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_USER: turbine_guard
+          POSTGRES_PASSWORD: turbine_guard_test
+          POSTGRES_DB: turbine_guard_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready --username turbine_guard --dbname turbine_guard_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      TURBINE_GUARD_ENVIRONMENT: testing
+      TURBINE_GUARD_DATABASE_URL: postgresql+psycopg://turbine_guard:turbine_guard_test@127.0.0.1:5432/turbine_guard_test
+      TURBINE_GUARD_DATABASE_TEST_URL: postgresql+psycopg://turbine_guard:turbine_guard_test@127.0.0.1:5432/turbine_guard_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --locked
+      - name: Upgrade an empty database
+        run: uv run alembic upgrade head
+      - name: Verify current revision and ORM parity
+        run: |
+          uv run alembic current
+          uv run alembic check
+      - name: Exercise complete downgrade and re-upgrade
+        run: |
+          uv run alembic downgrade base
+          uv run alembic upgrade head
+          uv run alembic current
+      - name: Run PostgreSQL integration tests
+        run: uv run pytest -m postgres
+
+  mlflow-integration:
+    name: Local MLflow registry integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --locked
+      - name: Package, register, alias, reload, and refresh test champions
+        run: >-
+          uv run pytest
+          tests/unit/test_mlflow_tracking.py
+          tests/unit/test_lifecycle_registry.py
+          tests/unit/test_model_loader.py
+
+  container-smoke:
+    name: Production image and Compose smoke
+    runs-on: ubuntu-latest
+    needs: [python-quality, postgres-integration, mlflow-integration]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          load: true
+          push: false
+          tags: turbine-guard:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Verify image user, imports, CLIs, settings, and graceful shutdown
+        run: sh scripts/verify_container.sh turbine-guard:ci
+      - name: Run migrations, deterministic champion bootstrap, and API smoke
+        env:
+          SKIP_BUILD: "1"
+          TURBINE_GUARD_IMAGE: turbine-guard:ci
+          COMPOSE_PROJECT_NAME: turbine-guard-ci
+        run: sh scripts/docker_smoke.sh
