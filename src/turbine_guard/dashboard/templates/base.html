@@ -10,11 +10,12 @@
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="/dashboard" aria-label="TurbineGuard fleet dashboard">
+    <a class="brand" href="/" aria-label="TurbineGuard live demo">
       <span class="brand-mark">TG</span>
       <span><strong>TurbineGuard</strong><small>Predictive maintenance</small></span>
     </a>
     <nav aria-label="Primary">
+      <a class="{% if page == 'demo' %}active{% endif %}" href="/">Demo</a>
       <a class="{% if page == 'fleet' %}active{% endif %}" href="/dashboard">Fleet</a>
       <a class="{% if page == 'predictions' %}active{% endif %}" href="/dashboard/predictions">Predictions</a>
       <a class="{% if page == 'models' %}active{% endif %}" href="/dashboard/models">Model</a>

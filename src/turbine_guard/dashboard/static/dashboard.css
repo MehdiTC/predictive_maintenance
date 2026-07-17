@@ -3,3 +3,16 @@
 @media(max-width:1150px){.metric-grid{grid-template-columns:repeat(4,1fr)}.detail-grid{grid-template-columns:repeat(3,1fr)}.asset-metrics{grid-template-columns:repeat(3,1fr)}.sensor-picker fieldset{grid-template-columns:repeat(5,1fr)}}
 @media(max-width:760px){.site-header{position:static;align-items:flex-start}.site-header nav{display:grid;grid-template-columns:repeat(2,1fr)}.hero{display:block}.hero-status{margin-top:1rem}.metric-grid,.asset-metrics{grid-template-columns:repeat(2,1fr)}.two-column{grid-template-columns:1fr}.detail-grid{grid-template-columns:repeat(2,1fr)}.sensor-picker fieldset{grid-template-columns:repeat(3,1fr)}.filters{align-items:stretch;flex-direction:column}.alert-item{grid-template-columns:auto 1fr}.alert-item .align-right{grid-column:2;text-align:left}.chart{min-height:320px}}
 @media(max-width:430px){main{width:min(100% - 1rem,1440px)}.site-header{display:block}.site-header nav{margin-top:1rem}.metric-grid,.asset-metrics,.detail-grid{grid-template-columns:1fr}.sensor-picker fieldset{grid-template-columns:repeat(2,1fr)}}
+.demo-hero{padding-bottom:1rem}
+.demo-stats{grid-template-columns:repeat(4,minmax(150px,1fr))}
+.demo-controls{display:flex;align-items:center;gap:1rem;padding:1rem 1.2rem 1.3rem;flex-wrap:wrap}
+.demo-cta{font-size:1.05rem;padding:.85rem 1.6rem;border-color:rgba(85,214,190,.6);background:linear-gradient(145deg,rgba(85,214,190,.22),rgba(99,167,255,.16))}
+.demo-cta:disabled{cursor:default;opacity:.65}
+.demo-controls p{margin:0;color:var(--muted)}
+.punchline{margin-top:1rem;border-color:rgba(85,214,190,.55);background:rgba(85,214,190,.1);font-size:1.05rem;line-height:1.55}
+.how-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem;margin-top:1.4rem}
+.how-card{margin-top:0;padding:1.2rem 1.3rem}
+.how-card h3{margin:.2rem 0 .5rem}
+.how-card p{color:var(--muted);line-height:1.55;margin:0}
+.demo-links{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:1.4rem}
+@media (max-width:900px){.how-grid{grid-template-columns:1fr}.demo-stats{grid-template-columns:repeat(2,1fr)}.metric-grid{grid-template-columns:repeat(2,1fr)}.two-column{grid-template-columns:1fr}}

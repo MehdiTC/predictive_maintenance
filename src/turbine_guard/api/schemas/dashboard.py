@@ -234,6 +234,27 @@ class ModelOverviewResponse(ApiModel):
     latest_event: dict[str, Any] | None
 
 
+class DemoPredictionPoint(ApiModel):
+    cycle: int
+    predicted_rul: float
+    lower_rul: float | None
+    upper_rul: float | None
+    risk_level: str
+
+
+class DemoStateResponse(ApiModel):
+    """Everything the guided landing-page demo needs in one bounded payload."""
+
+    enabled: bool
+    demo_source_asset_id: int
+    run: ReplayRunResponse | None
+    series: list[DemoPredictionPoint]
+    model_version: str | None
+    max_attempts: int
+    max_cycles_per_request: int
+    cooldown_seconds: float
+
+
 class ReplayActionRequest(ApiModel):
     action: Literal["start", "step", "pause", "resume", "accelerate", "reset"]
     source_asset_id: int | None = Field(default=None, ge=1)

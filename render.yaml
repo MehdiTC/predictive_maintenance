@@ -55,11 +55,12 @@ services:
         value: "true"
       - key: TURBINE_GUARD_REPLAY_DEMO_SOURCE_ASSET_ID
         value: "9"
+      # Paced for the ~40-second guided landing-page simulation (ADR 0011 demo).
       - key: TURBINE_GUARD_REPLAY_PUBLIC_MAX_ACCELERATED_CYCLES
-        value: "10"
+        value: "20"
       - key: TURBINE_GUARD_REPLAY_PUBLIC_MAX_ATTEMPTS
-        value: "3"
+        value: "25"
       - key: TURBINE_GUARD_REPLAY_CONTROL_COOLDOWN_SECONDS
-        value: "2"
+        value: "1"
       - key: TURBINE_GUARD_APPLICATION_SECRET
         generateValue: true

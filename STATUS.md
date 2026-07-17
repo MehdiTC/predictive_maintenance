@@ -208,11 +208,23 @@ bundle, free Render service) and public verification; do not begin Loop 12.
    suppress tracebacks and internal URLs and remain useful when empty or degraded. Compose-based
    image validation from 2026-07-13 (bootstrap, 29-cycle replay, dependency-restart persistence)
    remains valid for the local reference topology.
-8. **External boundary.** Real-champion bundle export, `file://` restore into a clean directory,
+8. **Guided landing demo (2026-07-17).** `/` now serves a story-driven demo page: one headline,
+   one live RUL chart with the 90% band, and one button whose JavaScript drives the existing
+   bounded public replay actions on a timer (spectator mode on lease conflicts; completed runs
+   show failure cycle, first alert, and lead time computed from recorded predictions — real
+   engine 9 numbers: flagged at 170, critical at 182, failed at 201, 31 cycles of warning). The
+   operator console remains at `/dashboard`. Two production fixes landed with it: the dashboard
+   replay form no longer runs the blocking self-HTTP replay call on the event loop (this froze
+   and killed the live Render instance on 2026-07-17; a regression test now asserts threadpool
+   execution), and Render demo pacing became 20 cycles/request, 1 s cooldown, 25 attempts.
+9. **External boundary.** Real-champion bundle export, `file://` restore into a clean directory,
    app boot in bundle mode (readiness green: database/model/feature_contract), exported-snapshot
    dashboard labeling, MLflow-equivalence (max prediction difference 0.0), and no-MLflow-import were
-   all verified locally on 2026-07-14. Public HTTPS, Render cold-start behavior, and Neon runtime
-   limits require the owner's free Render/Neon/publishing accounts, so Loop 11 remains active.
+   all verified locally on 2026-07-14. The owner deployed on 2026-07-17: Neon database created,
+   bundle published (Hugging Face dataset `MehdiTC/turbine-guard-demo-bundle`, revision-pinned),
+   and `https://turbine-guard-web.onrender.com` verified publicly (liveness, readiness all-true,
+   docs, snapshot-labeled model page, bounded replay status). Remaining: push/deploy the guided
+   demo and deadlock fix, validate the public one-click replay, and enable the uptime pinger.
 
 ---
 
@@ -665,13 +677,12 @@ Loops 0–10 are complete and validated. Public deployment and dashboard work re
 
 ## Immediate Next Action
 
-Owner steps, all free: (1) create a Neon free-tier project/database and copy its connection
-string; (2) publish `data/deployment/turbine-guard-deployment-bundle.tar.gz` to a Hugging Face
-dataset repo (or GitHub Release) and note the revision-pinned URL plus SHA-256
-`df115b5408703a56c95a1088fdf30f10d729c237c774bb074069cc1fcd059828`; (3) create the Render Blueprint
-from `render.yaml` and enter the three `sync: false` values; (4) verify the assigned public HTTPS
-dashboard/OpenAPI/health URLs and the bounded replay demo. See
-`docs/dashboard_deployment.md` → "First deployment". Do not begin Loop 12.
+The public deployment at `https://turbine-guard-web.onrender.com` is live and verified. Owner
+steps remaining, all free: (1) commit/push the guided landing demo and the replay-form
+event-loop fix so Render auto-deploys; (2) run the one-click public simulation end to end;
+(3) create a free uptime monitor pinging `/health/live` every ~10 minutes so the free instance
+stays warm; (4) rotate the Neon password shared during setup. Then validate the Loop 11
+acceptance criteria and close the loop. Do not begin Loop 12.
 
 ---
 

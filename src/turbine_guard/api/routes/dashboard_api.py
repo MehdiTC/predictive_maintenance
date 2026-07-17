@@ -9,6 +9,7 @@ from fastapi import APIRouter, Header, Query, Request
 from turbine_guard.api.schemas.dashboard import (
     AlertSummaryResponse,
     AssetDashboardResponse,
+    DemoStateResponse,
     DriftDetailResponse,
     FleetOverviewResponse,
     ModelOverviewResponse,
@@ -45,6 +46,12 @@ def _bounded_limit(request: Request, value: int | None) -> int:
     if selected > settings.api_max_page_size:
         raise RequestParameterError("Requested limit exceeds the configured maximum.")
     return int(selected)
+
+
+@router.get("/demo", response_model=DemoStateResponse, tags=["dashboard"])
+def demo_state(request: Request) -> DemoStateResponse:
+    """State for the guided landing-page simulation: run, series, and limits."""
+    return _dashboard(request).demo()
 
 
 @router.get("/fleet", response_model=FleetOverviewResponse, tags=["dashboard"])

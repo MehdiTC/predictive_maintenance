@@ -38,8 +38,15 @@ def _replay(request: Request) -> ReplayControlService:
 
 
 @router.get("/", response_class=HTMLResponse)
-def root() -> RedirectResponse:
-    return RedirectResponse("/dashboard", status_code=307)
+def demo_page(request: Request) -> HTMLResponse:
+    """Story-driven landing page: one narrative, one chart, one button."""
+    try:
+        demo = _dashboard(request).demo().model_dump(mode="json")
+    except Exception:
+        demo = None
+    return templates.TemplateResponse(
+        request, "demo.html", _context(request, page="demo", demo=demo)
+    )
 
 
 @router.get("/dashboard", response_class=HTMLResponse)

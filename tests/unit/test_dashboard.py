@@ -15,6 +15,8 @@ from turbine_guard.api.schemas.dashboard import (
     AlertAssetItem,
     AlertSummaryResponse,
     AssetDashboardResponse,
+    DemoPredictionPoint,
+    DemoStateResponse,
     DriftDetailResponse,
     FleetAssetItem,
     FleetOverviewResponse,
@@ -198,6 +200,28 @@ class FakeDashboard:
             interval_coverage=0.9,
             average_interval_width=30,
             report_timestamp=NOW,
+        )
+
+    def demo(self) -> DemoStateResponse:
+        if self.fail:
+            raise RuntimeError("postgresql+psycopg://secret@internal/db")
+        return DemoStateResponse(
+            enabled=True,
+            demo_source_asset_id=9,
+            run=None,
+            series=[
+                DemoPredictionPoint(
+                    cycle=42,
+                    predicted_rul=24.5,
+                    lower_rul=15.0,
+                    upper_rul=34.0,
+                    risk_level="critical",
+                )
+            ],
+            model_version="7",
+            max_attempts=25,
+            max_cycles_per_request=20,
+            cooldown_seconds=1.0,
         )
 
     def model(self) -> ModelOverviewResponse:
@@ -413,3 +437,31 @@ def test_replay_form_action_runs_off_the_event_loop() -> None:
     assert response.status_code == 303
     assert "probe+completed" in response.headers["location"]
     assert observed == {"on_event_loop": False}
+
+
+def test_demo_landing_page_and_json_state() -> None:
+    with _client() as client:
+        page = client.get("/")
+        state = client.get("/v1/demo")
+    assert page.status_code == 200
+    assert "Predicting jet-engine failure" in page.text
+    assert "Run live simulation" not in page.text  # button text is set by JS, not the template
+    assert 'id="demo-run"' in page.text
+    assert 'id="demo-chart"' in page.text
+    assert "held out" in page.text or "locked away" in page.text
+    assert state.status_code == 200
+    body = state.json()
+    assert body["demo_source_asset_id"] == 9
+    assert body["series"][0]["cycle"] == 42
+    assert body["series"][0]["risk_level"] == "critical"
+    assert body["max_cycles_per_request"] >= 1
+
+
+def test_demo_page_renders_degraded_without_data_access() -> None:
+    dashboard = FakeDashboard()
+    dashboard.fail = True
+    with _client(dashboard) as client:
+        page = client.get("/")
+    assert page.status_code == 200
+    assert 'id="demo-run"' in page.text
+    assert "postgresql+psycopg" not in page.text

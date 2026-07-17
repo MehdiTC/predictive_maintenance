@@ -11,6 +11,8 @@ from turbine_guard.api.schemas.dashboard import (
     AlertAssetItem,
     AlertSummaryResponse,
     AssetDashboardResponse,
+    DemoPredictionPoint,
+    DemoStateResponse,
     DriftDetailResponse,
     DriftFeatureItem,
     FleetAssetItem,
@@ -165,6 +167,53 @@ class DashboardService:
             items=items,
             limit=limit,
             offset=offset,
+        )
+
+    def demo(self) -> DemoStateResponse:
+        """Bounded read-side state for the guided landing-page simulation."""
+        demo_source = self._settings.replay_demo_source_asset_id
+        with session_scope(self._sessions) as session:
+            run = (
+                session.execute(
+                    select(ReplayRun)
+                    .where(ReplayRun.source_asset_id == demo_source)
+                    .order_by(desc(ReplayRun.attempt), desc(ReplayRun.created_at))
+                    .limit(1)
+                )
+                .scalars()
+                .first()
+            )
+            predictions: list[Prediction] = []
+            if run is not None and run.asset_id is not None:
+                predictions = list(
+                    session.execute(
+                        select(Prediction)
+                        .where(Prediction.asset_id == run.asset_id)
+                        .order_by(Prediction.cycle)
+                        .limit(500)
+                    ).scalars()
+                )
+            run_payload = replay_response(run) if run is not None else None
+            series = [
+                DemoPredictionPoint(
+                    cycle=prediction.cycle,
+                    predicted_rul=prediction.predicted_rul,
+                    lower_rul=prediction.lower_rul,
+                    upper_rul=prediction.upper_rul,
+                    risk_level=prediction.risk_level.value,
+                )
+                for prediction in predictions
+            ]
+            model_version = predictions[-1].model_version if predictions else None
+        return DemoStateResponse(
+            enabled=self._settings.replay_controls_enabled,
+            demo_source_asset_id=demo_source,
+            run=run_payload,
+            series=series,
+            model_version=model_version,
+            max_attempts=self._settings.replay_public_max_attempts,
+            max_cycles_per_request=self._settings.replay_public_max_accelerated_cycles,
+            cooldown_seconds=self._settings.replay_control_cooldown_seconds,
         )
 
     def prediction_history(

@@ -470,11 +470,20 @@ Do not implement:
 * [x] Add dashboard, data-correctness, replay-safety, security, Blueprint, bundle, and
   real-PostgreSQL tests. (438 total tests pass.)
 * [x] Validate the recruiter-facing demo locally in the production image.
-* [ ] Create the free Neon database and enter its connection string in Render (owner).
-* [ ] Publish the exported bundle at a revision-pinned URL and enter URL + SHA-256 (owner).
-* [ ] Create the free Render Blueprint and verify the cold-start restore/migration logs (owner).
-* [ ] Verify the assigned public dashboard, OpenAPI, liveness, and readiness HTTPS URLs.
-* [ ] Validate the bounded public replay demo on Render.
+* [x] Create the free Neon database and enter its connection string in Render (owner, 2026-07-17).
+* [x] Publish the exported bundle at a revision-pinned URL and enter URL + SHA-256 (owner,
+  2026-07-17; Hugging Face dataset `MehdiTC/turbine-guard-demo-bundle`).
+* [x] Create the free Render Blueprint and verify the cold-start restore/migration logs (owner,
+  2026-07-17; live at `https://turbine-guard-web.onrender.com`).
+* [x] Verify the assigned public dashboard, OpenAPI, liveness, and readiness HTTPS URLs
+  (2026-07-17: readiness database/model/feature_contract all true; snapshot labeling verified).
+* [x] Fix the dashboard replay form event-loop deadlock that crashed the free instance; add a
+  regression test asserting the blocking control call runs on the threadpool (2026-07-17).
+* [x] Replace the landing page with the guided one-click demo (`/v1/demo` endpoint, auto-run
+  simulation, live RUL chart, computed failure/lead-time verdict) per owner UX feedback
+  (2026-07-17; local validation with real 201-cycle engine 9 data).
+* [ ] Push the demo/deadlock changes and validate the guided public replay demo on Render (owner).
+* [ ] Set up the free uptime pinger so the free instance stays warm (owner).
 * [ ] Validate Loop 11 acceptance criteria.
 
 ---

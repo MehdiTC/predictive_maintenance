@@ -16,7 +16,7 @@ replay, monitoring, or registry behavior.
 
 | Page | Purpose |
 | --- | --- |
-| `/` | Redirect to the fleet dashboard |
+| `/` | Story-driven landing demo: one narrative, one live RUL chart, one button that auto-streams the held-out demo engine through the model (JS drives the bounded replay actions on a timer; the completed run shows failure cycle, first alert, and lead time computed from the recorded predictions) |
 | `/dashboard` | Fleet metrics/table, current alerts, and safe replay status/control |
 | `/dashboard/assets/{asset_id}` | Asset state, RUL interval, risk/horizons, selected anonymous sensors, events, and history |
 | `/dashboard/predictions` | Bounded versioned prediction history and filters |
@@ -68,7 +68,8 @@ Public-demo restrictions are:
 * only `TURBINE_GUARD_REPLAY_DEMO_SOURCE_ASSET_ID` is eligible;
 * protected train, validation, calibration, and official-test assets cannot be selected;
 * start does not advance implicitly;
-* resume advances one cycle and accelerated mode advances at most 10 cycles per request by default;
+* resume advances one cycle and accelerated mode advances a configured bound per request
+  (10 by default; the public demo sets 20 so the guided landing simulation finishes in ~40 s);
 * a per-client cooldown limits request bursts;
 * an active lease rejects simultaneous advancement;
 * reset needs explicit confirmation, creates append-only attempt history, and is capped at three

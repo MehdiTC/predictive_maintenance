@@ -65,8 +65,11 @@ def test_render_demo_replay_policy_remains_bounded() -> None:
     env = {item["key"]: item["value"] for item in web["envVars"] if "value" in item}
     assert env["TURBINE_GUARD_PUBLIC_DEMO_MODE"] == "true"
     assert env["TURBINE_GUARD_REPLAY_DEMO_SOURCE_ASSET_ID"] == "9"
-    assert int(env["TURBINE_GUARD_REPLAY_PUBLIC_MAX_ACCELERATED_CYCLES"]) <= 10
-    assert int(env["TURBINE_GUARD_REPLAY_PUBLIC_MAX_ATTEMPTS"]) <= 3
+    # Bounds sized for the guided one-click demo: small enough that a single
+    # request stays fast, attempts capped so demo state cannot grow unbounded.
+    assert int(env["TURBINE_GUARD_REPLAY_PUBLIC_MAX_ACCELERATED_CYCLES"]) <= 25
+    assert int(env["TURBINE_GUARD_REPLAY_PUBLIC_MAX_ATTEMPTS"]) <= 25
+    assert float(env["TURBINE_GUARD_REPLAY_CONTROL_COOLDOWN_SECONDS"]) >= 1
 
 
 def test_render_blueprint_contains_no_literal_credentials() -> None:
