@@ -9,7 +9,6 @@ services:
     dockerCommand: python scripts/start_demo.py
     healthCheckPath: /health/live
     autoDeployTrigger: checksPass
-    maxShutdownDelaySeconds: 30
     envVars:
       - key: TURBINE_GUARD_ENVIRONMENT
         value: production
