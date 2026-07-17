@@ -65,6 +65,9 @@ from turbine_guard.modeling.simulation import simulate_maintenance_policies
 
 logger = logging.getLogger(__name__)
 
+RICH_OUTPUT_COLUMNS = ("predicted_rul", "lower_rul", "upper_rul", "risk_level")
+"""Ordered serving output contract shared by MLflow pyfunc and bundle serving."""
+
 
 class TrainingStatus(StrEnum):
     """Outcome of one training command."""
@@ -115,6 +118,20 @@ class ModelBundle:
         if self.target_cap is not None:
             upper = np.minimum(upper, self.target_cap)
         return lower, upper
+
+    def predict_rich(self, features: pd.DataFrame) -> pd.DataFrame:
+        """Return the point, interval, and risk serving output in one frame."""
+        point = self.predict(features)
+        lower, upper = self.predict_interval(features)
+        risk = np.where(
+            point <= self.critical_horizon,
+            "critical",
+            np.where(point <= self.warning_horizon, "warning", "healthy"),
+        )
+        return pd.DataFrame(
+            dict(zip(RICH_OUTPUT_COLUMNS, (point, lower, upper, risk), strict=True)),
+            index=features.index,
+        )
 
 
 @dataclass(frozen=True)

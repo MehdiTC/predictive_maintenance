@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}TurbineGuard · Temporarily unavailable{% endblock %}
+{% block content %}
+<section class="hero compact">
+  <p class="eyebrow">DEGRADED STATE</p>
+  <h1>We can’t load this view right now.</h1>
+  <p class="lede">{{ error }}</p>
+  <p>The service may be starting, the database may be empty, or MLflow may be temporarily unavailable. The page will recover without exposing a raw traceback.</p>
+  <a class="button" href="/dashboard">Return to fleet</a>
+</section>
+{% endblock %}

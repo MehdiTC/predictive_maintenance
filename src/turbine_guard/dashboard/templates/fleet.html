@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}TurbineGuard · Fleet overview{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">NASA C-MAPSS · LIVE DEMO</p>
+    <h1>Fleet health, without the noise.</h1>
+    <p class="lede">Version-pinned RUL forecasts, calibrated uncertainty, alert state, and delayed performance in one operational view.</p>
+  </div>
+  <div class="hero-status">
+    <span class="status-dot {{ fleet.drift_status }}"></span>
+    <div><small>System signal</small><strong>{{ fleet.drift_status | replace('_', ' ') | title }}</strong></div>
+  </div>
+</section>
+
+{% if message %}<div class="notice" role="status">{{ message }}</div>{% endif %}
+
+<section class="metric-grid" aria-label="Fleet summary">
+  <article><small>Total assets</small><strong>{{ fleet.total_assets }}</strong><span>{{ fleet.active_assets }} active</span></article>
+  <article><small>Healthy</small><strong class="healthy-text">{{ fleet.healthy_count }}</strong><span>latest state</span></article>
+  <article><small>Warning</small><strong class="warning-text">{{ fleet.warning_count }}</strong><span>review soon</span></article>
+  <article><small>Critical</small><strong class="critical-text">{{ fleet.critical_count }}</strong><span>attention required</span></article>
+  <article><small>No prediction</small><strong>{{ fleet.assets_without_recent_predictions }}</strong><span>or missing history</span></article>
+  <article><small>Champion</small><strong>{{ fleet.current_model_version or '—' }}</strong><span>registry version</span></article>
+  <article><small>Performance</small><strong class="small-value">{{ fleet.performance_status | replace('_', ' ') }}</strong><span>delayed labels</span></article>
+  <article><small>Replay</small><strong class="small-value">{{ fleet.replay_status | replace('_', ' ') }}</strong><span>most recent run</span></article>
+</section>
+
+<section class="panel">
+  <div class="panel-heading"><div><p class="eyebrow">FLEET</p><h2>Latest asset health</h2></div><span>{{ fleet.items | length }} shown</span></div>
+  {% if fleet.items %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Asset</th><th>Cycle</th><th>RUL</th><th>Interval</th><th>Risk</th><th>Observed</th><th>Model</th><th>Freshness</th><th></th></tr></thead>
+    <tbody>
+    {% for item in fleet.items %}
+      <tr class="risk-row-{{ item.risk_level or 'unknown' }}">
+        <td><strong>{{ item.external_asset_id }}</strong><small>{{ item.asset_status }}</small></td>
+        <td>{{ item.latest_cycle or '—' }}</td>
+        <td class="numeric">{{ '%.1f' | format(item.predicted_rul) if item.predicted_rul is not none else '—' }}</td>
+        <td class="numeric">{% if item.lower_rul is not none %}{{ '%.1f' | format(item.lower_rul) }}–{{ '%.1f' | format(item.upper_rul) }}{% else %}—{% endif %}</td>
+        <td><span class="badge {{ item.risk_level or 'unknown' }}">{{ item.risk_level or 'unknown' }}</span></td>
+        <td><time>{{ item.latest_observation_at.strftime('%Y-%m-%d %H:%M') if item.latest_observation_at else '—' }}</time></td>
+        <td>v{{ item.model_version or '—' }}</td>
+        <td><span class="badge {{ 'stale' if item.stale else 'fresh' }}">{{ 'stale' if item.stale else 'fresh' }}</span></td>
+        <td><a class="row-link" href="/dashboard/assets/{{ item.asset_id }}">View →</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<div class="empty"><h3>No assets yet</h3><p>Bootstrap the deployment or start the eligible demo replay. This view will populate as readings arrive.</p></div>{% endif %}
+</section>
+
+<div class="two-column">
+<section class="panel">
+  <div class="panel-heading"><div><p class="eyebrow">ALERTS</p><h2>Current attention queue</h2></div><span>{{ alerts.critical_count }} critical · {{ alerts.warning_count }} warning</span></div>
+  {% if alerts.items %}<div class="alert-list">
+    {% for alert in alerts.items %}<a href="/dashboard/assets/{{ alert.asset_id }}" class="alert-item {{ alert.current_risk_level }}">
+      <span class="badge {{ alert.current_risk_level }}">{{ alert.current_risk_level }}</span>
+      <div><strong>{{ alert.external_asset_id }}</strong><small>First warning c{{ alert.first_warning_cycle or '—' }} · first critical c{{ alert.first_critical_cycle or '—' }}</small></div>
+      <div class="align-right"><strong>{{ '%.1f' | format(alert.latest_predicted_rul) }} cycles</strong><small>model v{{ alert.model_version }}{% if alert.outcome %} · {{ alert.outcome }} outcome{% endif %}</small></div>
+    </a>{% endfor %}
+  </div>{% else %}<div class="empty"><p>No assets are currently warning or critical.</p></div>{% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-heading"><div><p class="eyebrow">REPLAY</p><h2>Safe demo control</h2></div><span>{{ 'public demo' if replay.public_demo_mode else 'operator mode' }}</span></div>
+  {% for restriction in replay.restrictions %}<p class="restriction">{{ restriction }}</p>{% endfor %}
+  {% if replay.runs %}
+    {% set run = replay.runs[0] %}
+    <div class="progress-label"><strong>{{ run.external_asset_id }}</strong><span>{{ run.last_confirmed_cycle }} cycles · {{ run.progress_percent }}%</span></div>
+    <div class="progress"><span style="width: {{ run.progress_percent }}%"></span></div>
+    <p><span class="badge {{ run.status }}">{{ run.status }}</span> Attempt {{ run.attempt }}{% if run.final_cycle %} · completed at cycle {{ run.final_cycle }}{% endif %}</p>
+  {% endif %}
+  {% if replay.writable and csrf_token %}
+  <form method="post" action="/dashboard/replay" class="control-grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if replay.runs %}<input type="hidden" name="run_id" value="{{ replay.runs[0].run_id }}">{% endif %}
+    <label>Demo asset<select name="source_asset_id">{% for id in replay.allowed_source_asset_ids %}<option value="{{ id }}">FD001 replay asset {{ id }}</option>{% endfor %}</select></label>
+    {% if not replay.public_demo_mode %}<label>Control token<input name="control_token" type="password" autocomplete="off"></label>{% endif %}
+    <div class="button-row">
+      <button name="action" value="start">Start</button>
+      {% if replay.runs %}<button name="action" value="step">One cycle</button><button name="action" value="pause">Pause</button><button name="action" value="resume">Resume</button><button name="action" value="accelerate">Accelerate ×10</button>{% endif %}
+    </div>
+    {% if replay.runs %}<label class="confirm"><input type="checkbox" name="confirm_reset" value="yes"> Confirm append-only reset</label><button class="danger-button" name="action" value="reset">Reset demo</button>{% endif %}
+  </form>
+  {% else %}<div class="empty"><p>Replay controls are read-only on this deployment. Status remains visible.</p></div>{% endif %}
+</section>
+</div>
+{% endblock %}

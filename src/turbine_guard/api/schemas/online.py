@@ -220,6 +220,10 @@ class CurrentModelResponse(ApiModel):
     model_load_timestamp: datetime
     model_checksum: str | None
     lineage_id: str | None
+    model_family: str | None = None
+    git_sha: str | None = None
+    dataset_checksum: str | None = None
+    feature_manifest_checksum: str | None = None
 
 
 class MonitoringSummaryResponse(ApiModel):

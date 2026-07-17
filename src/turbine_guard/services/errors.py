@@ -36,3 +36,23 @@ class DatabaseUnavailableError(ServiceError):
 class RequestParameterError(ServiceError):
     code = "request_validation_failed"
     status_code = 422
+
+
+class ReplayControlDisabledError(ServiceError):
+    code = "replay_control_disabled"
+    status_code = 403
+
+
+class ReplayControlForbiddenError(ServiceError):
+    code = "replay_control_forbidden"
+    status_code = 403
+
+
+class ReplayControlConflictError(ServiceError):
+    code = "replay_control_conflict"
+    status_code = 409
+
+
+class ReplayControlRateLimitedError(ServiceError):
+    code = "replay_control_rate_limited"
+    status_code = 429

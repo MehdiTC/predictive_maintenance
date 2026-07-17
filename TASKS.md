@@ -14,7 +14,11 @@
 
 # Active Loop
 
-None. Loops 0–10 are complete and validated. Loop 11 has not started.
+Loop 11 — Dashboard and Public Deployment. Implementation and local validation are complete,
+including the zero-cost architecture (ADR 0011: free Render web service + Neon free PostgreSQL +
+immutable checksum-pinned deployment bundle, replacing the ~$20.80/month paid Blueprint). The
+remaining steps require only the repository owner's free accounts: Neon database, published bundle,
+free Render service, and public HTTPS verification. Do not begin Loop 12.
 
 ---
 
@@ -434,22 +438,43 @@ Do not implement:
 
 ## Loop 11 — Dashboard and Public Deployment
 
-**Status:** Not started
+**Status:** Active — implementation/local validation complete; public Render verification pending
 
-* [ ] Build fleet overview.
-* [ ] Build asset-health view.
-* [ ] Display RUL and prediction intervals.
-* [ ] Display warnings and critical alerts.
-* [ ] Display prediction history.
-* [ ] Display model version.
-* [ ] Display drift status.
-* [ ] Display recent online performance.
-* [ ] Add replay controls where safe.
-* [ ] Prepare Render deployment.
-* [ ] Configure public HTTPS access.
-* [ ] Configure secrets safely.
-* [ ] Verify persistent storage requirements.
-* [ ] Validate the public demo.
+* [x] Build fleet overview.
+* [x] Build asset-health view.
+* [x] Display RUL and prediction intervals.
+* [x] Display warnings and critical alerts.
+* [x] Display bounded/filterable prediction history.
+* [x] Display champion version, lineage, aliases, and lifecycle status.
+* [x] Display bounded drift status and top-feature detail.
+* [x] Display recent online performance with explicit capped/uncapped labeling.
+* [x] Add constrained replay controls using the Loop 8 service behavior.
+* [x] Add read-only dashboard API projections, pagination/limits, and deterministic ordering.
+* [x] Add responsive templates, minimal CSS/JavaScript, Plotly charts, and degraded/empty states.
+* [x] Prepare and validate the Render Blueprint. (Replaced 2026-07-14 by the zero-cost ADR 0011
+  Blueprint: one free web service, no disks, no Render database, no MLflow service.)
+* [x] Configure secrets outside Git and document rotation. (Neon URL and bundle URL/SHA-256 are
+  dashboard-entered `sync: false` values; Render generates the application secret.)
+* [x] Configure and locally verify PostgreSQL, MLflow, artifact, generated-data, replay, and
+  monitoring persistence across restart. (Local Compose reference topology, 2026-07-13.)
+* [x] Implement the deployment-bundle export/restore tooling and manifest (ADR 0011): export from
+  the verified live champion, registry-identity snapshot, per-file SHA-256, pinned archive.
+* [x] Implement bundle-mode serving (`TURBINE_GUARD_MODEL_SOURCE=deployment_bundle`) behind the
+  shared `ChampionLoader` protocol, with no MLflow import in the demo process.
+* [x] Implement the cold-start demo entry point: pinned restore → `alembic upgrade head` → serve;
+  never trains; idempotent and self-healing.
+* [x] Verify bundle serving equals the MLflow pyfunc exactly (max prediction difference 0.0) and
+  the app boots ready in bundle mode against real PostgreSQL.
+* [x] Document the zero-cost architecture, bundle workflow, cold start, persistence matrix,
+  free-tier tradeoffs, deployment, and troubleshooting; add ADR 0011 and amend ADR 0010.
+* [x] Add dashboard, data-correctness, replay-safety, security, Blueprint, bundle, and
+  real-PostgreSQL tests. (438 total tests pass.)
+* [x] Validate the recruiter-facing demo locally in the production image.
+* [ ] Create the free Neon database and enter its connection string in Render (owner).
+* [ ] Publish the exported bundle at a revision-pinned URL and enter URL + SHA-256 (owner).
+* [ ] Create the free Render Blueprint and verify the cold-start restore/migration logs (owner).
+* [ ] Verify the assigned public dashboard, OpenAPI, liveness, and readiness HTTPS URLs.
+* [ ] Validate the bounded public replay demo on Render.
 * [ ] Validate Loop 11 acceptance criteria.
 
 ---

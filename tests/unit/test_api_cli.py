@@ -35,6 +35,7 @@ def test_production_api_entrypoint_uses_typed_bind_settings(
                 "port": 8123,
                 "access_log": False,
                 "proxy_headers": False,
+                "forwarded_allow_ips": "127.0.0.1",
                 "timeout_graceful_shutdown": 30,
             },
         )

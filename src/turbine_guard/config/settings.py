@@ -64,6 +64,16 @@ class Settings(BaseSettings):
     mlflow_run_name_prefix: str = "fd001-offline"
     mlflow_project_tag: str = "turbine-guard"
 
+    model_source: Literal["mlflow", "deployment_bundle"] = "mlflow"
+    """Where the serving champion comes from: the live MLflow registry or a
+    checksum-verified exported deployment bundle (free public demo)."""
+
+    deployment_bundle_url: str | None = None
+    """https:// or file:// URL of the revision-pinned deployment bundle archive."""
+
+    deployment_bundle_sha256: str | None = None
+    """Required SHA-256 of the deployment bundle archive named by the URL."""
+
     database_url: str = "postgresql+psycopg://localhost:5432/turbine_guard"
     """Operational PostgreSQL URL; deliberately separate from MLflow's backend."""
 
@@ -88,6 +98,26 @@ class Settings(BaseSettings):
     api_port: int = 8000
     cors_allowed_origins: tuple[str, ...] = ()
     trusted_hosts: tuple[str, ...] = ("localhost", "127.0.0.1", "testserver")
+    proxy_headers_enabled: bool = False
+    forwarded_allow_ips: str = "127.0.0.1"
+
+    dashboard_enabled: bool = True
+    dashboard_default_sensor_columns: tuple[str, ...] = (
+        "sensor_02",
+        "sensor_04",
+        "sensor_07",
+        "sensor_11",
+    )
+    dashboard_history_limit: int = 200
+    dashboard_top_drift_features: int = 12
+    public_demo_mode: bool = False
+    replay_controls_enabled: bool = False
+    replay_demo_source_asset_id: int = 9
+    replay_public_max_accelerated_cycles: int = 10
+    replay_public_max_attempts: int = 3
+    replay_control_cooldown_seconds: float = 2.0
+    replay_admin_token: str | None = None
+    application_secret: str | None = None
 
     replay_api_base_url: str = "http://127.0.0.1:8000"
     """Base URL of the running Loop 7 inference API the replay client targets."""
@@ -174,15 +204,37 @@ class Settings(BaseSettings):
             raise ValueError("MLflow configuration values must not be empty.")
         return normalized
 
-    @field_validator("database_url", "database_test_url")
+    @field_validator("deployment_bundle_url")
     @classmethod
-    def _postgresql_url(cls, value: str | None) -> str | None:
-        """Accept only explicit psycopg PostgreSQL URLs for operational storage."""
+    def _deployment_bundle_url(cls, value: str | None) -> str | None:
         if value is None:
             return None
         normalized = value.strip()
+        if not normalized.startswith(("https://", "file://")):
+            raise ValueError("Deployment bundle URLs must use https:// or file://.")
+        return normalized
+
+    @field_validator("deployment_bundle_sha256")
+    @classmethod
+    def _deployment_bundle_sha256(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        if len(normalized) != 64 or any(char not in "0123456789abcdef" for char in normalized):
+            raise ValueError("Deployment bundle checksums must be 64 hexadecimal characters.")
+        return normalized
+
+    @field_validator("database_url", "database_test_url")
+    @classmethod
+    def _postgresql_url(cls, value: str | None) -> str | None:
+        """Normalize Render-style PostgreSQL URLs to the explicit psycopg driver."""
+        if value is None:
+            return None
+        normalized = value.strip()
+        if normalized.startswith("postgresql://"):
+            normalized = normalized.replace("postgresql://", "postgresql+psycopg://", 1)
         if not normalized.startswith("postgresql+psycopg://"):
-            raise ValueError("Operational database URLs must use postgresql+psycopg://.")
+            raise ValueError("Operational database URLs must use PostgreSQL with psycopg.")
         try:
             parsed = make_url(normalized)
         except ArgumentError as exc:
@@ -224,6 +276,11 @@ class Settings(BaseSettings):
         "api_prediction_trend_size",
         "api_max_request_bytes",
         "api_port",
+        "dashboard_history_limit",
+        "dashboard_top_drift_features",
+        "replay_demo_source_asset_id",
+        "replay_public_max_accelerated_cycles",
+        "replay_public_max_attempts",
     )
     @classmethod
     def _positive_online_integer(cls, value: int) -> int:
@@ -238,6 +295,26 @@ class Settings(BaseSettings):
         if not normalized:
             raise ValueError("API host must not be empty.")
         return normalized
+
+    @field_validator("forwarded_allow_ips", "replay_admin_token", "application_secret")
+    @classmethod
+    def _optional_non_blank_secret(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Configured proxy and secret values must not be blank.")
+        return normalized
+
+    @field_validator("dashboard_default_sensor_columns")
+    @classmethod
+    def _anonymous_sensor_selection(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        allowed = {f"sensor_{index:02d}" for index in range(1, 22)}
+        if not value or len(value) > 6 or len(set(value)) != len(value):
+            raise ValueError("Select between one and six distinct dashboard sensors.")
+        if any(column not in allowed for column in value):
+            raise ValueError("Dashboard sensor selections must use anonymous sensor_01..21 names.")
+        return value
 
     @field_validator("cors_allowed_origins", "trusted_hosts")
     @classmethod
@@ -259,6 +336,13 @@ class Settings(BaseSettings):
     def _non_negative_replay_seconds(cls, value: float) -> float:
         if value < 0:
             raise ValueError("Replay delay and backoff values must be non-negative.")
+        return value
+
+    @field_validator("replay_control_cooldown_seconds")
+    @classmethod
+    def _non_negative_control_cooldown(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("Replay control cooldown must be non-negative.")
         return value
 
     @field_validator(
@@ -338,6 +422,18 @@ class Settings(BaseSettings):
             raise ValueError("API port must not exceed 65535.")
         if self.monitoring_psi_warning > self.monitoring_psi_detected:
             raise ValueError("PSI warning threshold cannot exceed the detected threshold.")
+        if (
+            self.replay_controls_enabled
+            and not self.public_demo_mode
+            and not self.replay_admin_token
+        ):
+            raise ValueError(
+                "Writable non-demo replay controls require TURBINE_GUARD_REPLAY_ADMIN_TOKEN."
+            )
+        if self.replay_controls_enabled and not self.application_secret:
+            raise ValueError("Writable replay controls require TURBINE_GUARD_APPLICATION_SECRET.")
+        if (self.deployment_bundle_url is None) != (self.deployment_bundle_sha256 is None):
+            raise ValueError("Deployment bundle URL and SHA-256 pin must be configured together.")
         return self
 
 

@@ -6,6 +6,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -16,6 +17,7 @@ from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.staticfiles import StaticFiles
 
 from turbine_guard import __version__
 from turbine_guard.api.errors import (
@@ -25,8 +27,8 @@ from turbine_guard.api.errors import (
     unexpected_error_handler,
     validation_error_handler,
 )
-from turbine_guard.api.routes import health, online
-from turbine_guard.config.settings import Settings, get_settings
+from turbine_guard.api.routes import dashboard, dashboard_api, health, online
+from turbine_guard.config.settings import Environment, Settings, get_settings
 from turbine_guard.database.errors import PredictionConflictError, SensorReadingConflictError
 from turbine_guard.database.session import (
     DatabaseConfig,
@@ -36,12 +38,29 @@ from turbine_guard.database.session import (
 )
 from turbine_guard.logging_config import configure_logging
 from turbine_guard.observability.metrics import OnlineMetrics
+from turbine_guard.services.dashboard import DashboardService
 from turbine_guard.services.errors import ServiceError
 from turbine_guard.services.inference import OnlineInferenceService
-from turbine_guard.serving.model_loader import ChampionModelLoader
+from turbine_guard.services.replay_control import ReplayControlService
+from turbine_guard.serving.champion import ChampionLoader
 
 logger = logging.getLogger(__name__)
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+
+
+def _create_champion_loader(settings: Settings) -> ChampionLoader:
+    """Select the configured champion source.
+
+    The deployment-bundle loader deliberately avoids importing MLflow, so the
+    free public demo never pays MLflow's import cost; import lazily here.
+    """
+    if settings.model_source == "deployment_bundle":
+        from turbine_guard.serving.bundle_loader import DeploymentBundleLoader
+
+        return DeploymentBundleLoader(settings)
+    from turbine_guard.serving.model_loader import ChampionModelLoader
+
+    return ChampionModelLoader(settings)
 
 
 def create_app(
@@ -49,6 +68,8 @@ def create_app(
     *,
     readiness_checks: Mapping[str, Callable[[], bool]] | None = None,
     online_service: OnlineInferenceService | None = None,
+    dashboard_service: DashboardService | None = None,
+    replay_control: ReplayControlService | None = None,
     metrics: OnlineMetrics | None = None,
 ) -> FastAPI:
     """Create an app with lazy lifespan resources and injectable test boundaries."""
@@ -56,18 +77,26 @@ def create_app(
     configure_logging(app_settings.log_level)
     app_metrics = metrics or OnlineMetrics()
     engine: Engine | None = None
-    loader: ChampionModelLoader | None = None
+    loader: ChampionLoader | None = None
+    owned_replay_control: ReplayControlService | None = None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        nonlocal engine, loader
+        nonlocal engine, loader, owned_replay_control
         checks = dict(readiness_checks or {})
         if app_settings.online_inference_enabled and online_service is None:
             engine = create_database_engine(DatabaseConfig.from_settings(app_settings))
-            loader = ChampionModelLoader(app_settings)
+            loader = _create_champion_loader(app_settings)
             app.state.online_service = OnlineInferenceService(
                 create_session_factory(engine), loader, app_metrics, app_settings
             )
+            sessions = create_session_factory(engine)
+            app.state.dashboard_service = dashboard_service or DashboardService(
+                sessions, loader, app_settings
+            )
+            if replay_control is None:
+                owned_replay_control = ReplayControlService.create(sessions, app_settings)
+            app.state.replay_control = replay_control or owned_replay_control
 
             def database_ready() -> bool:
                 available = check_database_connection(engine)
@@ -100,10 +129,14 @@ def create_app(
                     logger.exception("champion_preload_failed")
         else:
             app.state.online_service = online_service
+            app.state.dashboard_service = dashboard_service
+            app.state.replay_control = replay_control
         app.state.readiness_checks = checks
         try:
             yield
         finally:
+            if owned_replay_control is not None:
+                owned_replay_control.close()
             if engine is not None:
                 engine.dispose()
 
@@ -120,6 +153,8 @@ def create_app(
     app.state.settings = app_settings
     app.state.metrics = app_metrics
     app.state.online_service = online_service
+    app.state.dashboard_service = dashboard_service
+    app.state.replay_control = replay_control
     app.state.readiness_checks = dict(readiness_checks or {})
 
     if app_settings.cors_allowed_origins:
@@ -140,7 +175,13 @@ def create_app(
         content_length = request.headers.get("content-length")
         started = time.perf_counter()
         response: Response
-        if content_length is not None and int(content_length) > app_settings.api_max_request_bytes:
+        oversized = False
+        if content_length is not None:
+            try:
+                oversized = int(content_length) > app_settings.api_max_request_bytes
+            except ValueError:
+                oversized = True
+        if oversized:
             response = JSONResponse(
                 {
                     "error": {
@@ -168,6 +209,18 @@ def create_app(
             },
         )
         response.headers["X-Request-ID"] = request_id
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self' https://cdn.plot.ly; "
+            "style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; "
+            "font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; "
+            "form-action 'self'"
+        )
+        if app_settings.environment is Environment.PRODUCTION:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response
 
     app.add_exception_handler(ServiceError, service_error_handler)  # type: ignore[arg-type]
@@ -184,6 +237,11 @@ def create_app(
     app.include_router(health.router)
     if app_settings.online_inference_enabled or online_service is not None:
         app.include_router(online.router)
+    if app_settings.dashboard_enabled:
+        static_path = Path(__file__).resolve().parents[1] / "dashboard" / "static"
+        app.mount("/static", StaticFiles(directory=static_path), name="static")
+        app.include_router(dashboard_api.router)
+        app.include_router(dashboard.router)
 
     logger.info(
         "application_created",

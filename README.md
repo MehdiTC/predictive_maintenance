@@ -11,8 +11,10 @@ The project is built in bounded implementation loops (see [PROJECT_SPEC.md](PROJ
 **Loops 0–10 are implemented**. The API, PostgreSQL, MLflow, explicit bootstrap, lifecycle worker,
 and held-out replay now share one non-root production image and a health-ordered Compose topology.
 GitHub Actions covers Python quality, real PostgreSQL migrations/integration, local MLflow, image
-contracts, and a deterministic end-to-end API smoke test. Public deployment and the dashboard are
-Loop 11 and are not implemented.
+contracts, and a deterministic end-to-end API smoke test. Loop 11 adds the server-rendered
+dashboard and a zero-cost public deployment path (free Render web service, Neon free PostgreSQL,
+and an immutable checksum-pinned deployment bundle); the live public URL is pending the owner's
+free-account setup.
 
 ## What the finished system will do
 
@@ -387,6 +389,21 @@ uv run python scripts/model_lifecycle.py rollback --version <N>
 See [docs/monitoring.md](docs/monitoring.md) for windows, formulas, thresholds, leakage policy,
 phase recovery, every CLI operation, and limitations.
 
+## Dashboard and public deployment
+
+The FastAPI process serves the Loop 11 dashboard at `/dashboard`, with fleet, asset health,
+prediction history, champion lineage, drift, delayed performance, and constrained replay views.
+Core tables and labels render without chart JavaScript; small local modules add Plotly charts for
+RUL intervals, risk changes, selected anonymous sensors, and top drift features.
+
+`render.yaml` defines the zero-cost public topology (ADR 0011): one free Render web service backed
+by an external Neon free-tier PostgreSQL database. The public champion is an immutable, exported,
+checksum-pinned deployment bundle (`scripts/deployment_bundle.py export`) restored and re-verified
+at cold start; no live MLflow service runs publicly, and the demo cannot mutate a registry. The
+full topology with live MLflow remains the local Docker Compose stack. Startup never trains. See
+[docs/dashboard_deployment.md](docs/dashboard_deployment.md) for routes, replay safety, the bundle
+workflow, secrets, persistence, free-tier tradeoffs, deployment, and troubleshooting.
+
 ## Project layout
 
 ```text
@@ -399,7 +416,10 @@ phase recovery, every CLI operation, and limitations.
 │   ├── tracking/       # optional MLflow runs, pyfunc, registry, aliases, inspection
 │   ├── replay/         # held-out replay, delayed labels, delayed evaluation, CLI
 │   ├── monitoring/     # quality/drift/performance, retraining, gates, lifecycle CLI
+│   ├── dashboard/      # Jinja pages, responsive CSS, lightweight Plotly modules
+│   ├── deployment/     # exported deployment bundle: manifest, export, restore, demo startup
 │   ├── services/       # business logic used by the API layer
+│   ├── serving/        # champion loaders: live MLflow registry or verified bundle snapshot
 │   └── logging_config.py
 ├── scripts/
 │   ├── download_data.py
@@ -408,7 +428,9 @@ phase recovery, every CLI operation, and limitations.
 │   ├── train_models.py
 │   ├── mlflow_models.py
 │   ├── replay_sensor_data.py
-│   └── model_lifecycle.py
+│   ├── model_lifecycle.py
+│   ├── deployment_bundle.py
+│   └── start_demo.py
 ├── notebooks/
 │   └── 01_eda.ipynb    # the single primary EDA notebook (make eda)
 ├── docs/
@@ -421,8 +443,9 @@ phase recovery, every CLI operation, and limitations.
 │   ├── replay.md
 │   ├── monitoring.md
 │   ├── containers.md
+│   ├── dashboard_deployment.md
 │   └── adr/
-├── Dockerfile / compose.yaml / .dockerignore
+├── Dockerfile / compose.yaml / render.yaml / .dockerignore
 ├── .github/workflows/ci.yml
 ├── tests/
 │   ├── conftest.py

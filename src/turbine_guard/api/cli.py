@@ -18,7 +18,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         host=settings.api_host,
         port=settings.api_port,
         access_log=False,
-        proxy_headers=False,
+        proxy_headers=settings.proxy_headers_enabled,
+        forwarded_allow_ips=settings.forwarded_allow_ips,
         timeout_graceful_shutdown=30,
     )
     return 0

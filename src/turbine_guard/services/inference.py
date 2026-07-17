@@ -46,8 +46,8 @@ from turbine_guard.services.errors import (
     HistoryConflictError,
     ModelUnavailableError,
 )
-from turbine_guard.serving.model_loader import (
-    ChampionModelLoader,
+from turbine_guard.serving.champion import (
+    ChampionLoader,
     LoadedChampion,
     ModelMetadata,
     validate_prediction_output,
@@ -67,12 +67,12 @@ class SensorObservation:
 
 
 class OnlineInferenceService:
-    """Application boundary above repositories, features, and the MLflow cache."""
+    """Application boundary above repositories, features, and the champion cache."""
 
     def __init__(
         self,
         session_factory: sessionmaker[Session],
-        model_loader: ChampionModelLoader,
+        model_loader: ChampionLoader,
         metrics: OnlineMetrics,
         settings: Settings,
     ) -> None:
@@ -518,4 +518,8 @@ def _model_response(metadata: ModelMetadata) -> CurrentModelResponse:
         model_load_timestamp=metadata.loaded_at,
         model_checksum=metadata.checksum,
         lineage_id=metadata.lineage_id,
+        model_family=metadata.model_family,
+        git_sha=metadata.git_sha,
+        dataset_checksum=metadata.dataset_checksum,
+        feature_manifest_checksum=metadata.feature_manifest_checksum,
     )

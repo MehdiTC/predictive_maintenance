@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any, cast
 
 import mlflow
-import numpy as np
 import pandas as pd
 from mlflow.models import ModelSignature
 from mlflow.models.model import ModelInfo
@@ -13,12 +12,9 @@ from mlflow.pyfunc.model import PythonModel, PythonModelContext
 from mlflow.types import ColSpec, DataType, Schema
 
 from turbine_guard.modeling.artifacts import load_joblib, sha256_path
-from turbine_guard.modeling.pipeline import ModelBundle
+from turbine_guard.modeling.pipeline import RICH_OUTPUT_COLUMNS, ModelBundle
 
-POINT_COLUMN = "predicted_rul"
-LOWER_COLUMN = "lower_rul"
-UPPER_COLUMN = "upper_rul"
-RISK_COLUMN = "risk_level"
+POINT_COLUMN, LOWER_COLUMN, UPPER_COLUMN, RISK_COLUMN = RICH_OUTPUT_COLUMNS
 
 
 class ChampionPyFuncModel(PythonModel):
@@ -57,22 +53,7 @@ class ChampionPyFuncModel(PythonModel):
             raise ValueError("Champion model has not been loaded by MLflow.")
         if tuple(model_input.columns) != self.feature_columns:
             raise ValueError("Prediction columns do not match the ordered Loop 3 feature manifest.")
-        point = self._bundle.predict(model_input)
-        lower, upper = self._bundle.predict_interval(model_input)
-        risk = np.where(
-            point <= self._bundle.critical_horizon,
-            "critical",
-            np.where(point <= self._bundle.warning_horizon, "warning", "healthy"),
-        )
-        return pd.DataFrame(
-            {
-                POINT_COLUMN: point,
-                LOWER_COLUMN: lower,
-                UPPER_COLUMN: upper,
-                RISK_COLUMN: risk,
-            },
-            index=model_input.index,
-        )
+        return self._bundle.predict_rich(model_input)
 
 
 def champion_signature(feature_columns: tuple[str, ...]) -> ModelSignature:

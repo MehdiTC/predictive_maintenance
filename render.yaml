@@ -1,0 +1,66 @@
+services:
+  - type: web
+    name: turbine-guard-web
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: python scripts/start_demo.py
+    healthCheckPath: /health/live
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 30
+    envVars:
+      - key: TURBINE_GUARD_ENVIRONMENT
+        value: production
+      - key: TURBINE_GUARD_LOG_LEVEL
+        value: INFO
+      - key: TURBINE_GUARD_API_HOST
+        value: 0.0.0.0
+      - key: TURBINE_GUARD_API_PORT
+        value: "10000"
+      - key: TURBINE_GUARD_PROXY_HEADERS_ENABLED
+        value: "true"
+      - key: TURBINE_GUARD_FORWARDED_ALLOW_IPS
+        value: "*"
+      - key: TURBINE_GUARD_TRUSTED_HOSTS
+        value: '["*.onrender.com","turbine-guard-web","localhost","127.0.0.1"]'
+      - key: TURBINE_GUARD_CORS_ALLOWED_ORIGINS
+        value: "[]"
+      - key: TURBINE_GUARD_DATA_DIR
+        value: /var/lib/turbine-guard
+      # External Neon free-tier PostgreSQL; pasted in the Render dashboard, never in Git.
+      - key: TURBINE_GUARD_DATABASE_URL
+        sync: false
+      - key: TURBINE_GUARD_DATABASE_POOL_SIZE
+        value: "3"
+      - key: TURBINE_GUARD_DATABASE_MAX_OVERFLOW
+        value: "2"
+      - key: TURBINE_GUARD_DATABASE_POOL_RECYCLE_SECONDS
+        value: "300"
+      # Immutable exported champion snapshot; no live MLflow service exists here.
+      - key: TURBINE_GUARD_MODEL_SOURCE
+        value: deployment_bundle
+      # Revision-pinned published bundle URL and its SHA-256, entered per release.
+      - key: TURBINE_GUARD_DEPLOYMENT_BUNDLE_URL
+        sync: false
+      - key: TURBINE_GUARD_DEPLOYMENT_BUNDLE_SHA256
+        sync: false
+      - key: TURBINE_GUARD_REPLAY_API_BASE_URL
+        value: http://127.0.0.1:10000
+      - key: TURBINE_GUARD_DASHBOARD_ENABLED
+        value: "true"
+      - key: TURBINE_GUARD_PUBLIC_DEMO_MODE
+        value: "true"
+      - key: TURBINE_GUARD_REPLAY_CONTROLS_ENABLED
+        value: "true"
+      - key: TURBINE_GUARD_REPLAY_DEMO_SOURCE_ASSET_ID
+        value: "9"
+      - key: TURBINE_GUARD_REPLAY_PUBLIC_MAX_ACCELERATED_CYCLES
+        value: "10"
+      - key: TURBINE_GUARD_REPLAY_PUBLIC_MAX_ATTEMPTS
+        value: "3"
+      - key: TURBINE_GUARD_REPLAY_CONTROL_COOLDOWN_SECONDS
+        value: "2"
+      - key: TURBINE_GUARD_APPLICATION_SECRET
+        generateValue: true

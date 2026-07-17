@@ -86,6 +86,34 @@ def test_operational_database_settings_are_separate_from_mlflow(
     assert settings.mlflow_tracking_uri == "sqlite:///data/mlflow/mlflow.db"
 
 
+def test_render_database_url_is_normalized_to_psycopg() -> None:
+    settings = Settings(database_url="postgresql://user:secret@render-internal/db")
+    assert settings.database_url == "postgresql+psycopg://user:secret@render-internal/db"
+
+
+def test_replay_control_security_configuration_is_enforced() -> None:
+    with pytest.raises(ValidationError, match="APPLICATION_SECRET"):
+        Settings(replay_controls_enabled=True, public_demo_mode=True)
+    with pytest.raises(ValidationError, match="REPLAY_ADMIN_TOKEN"):
+        Settings(
+            replay_controls_enabled=True,
+            public_demo_mode=False,
+            application_secret="configured",
+        )
+    configured = Settings(
+        replay_controls_enabled=True,
+        public_demo_mode=False,
+        application_secret="configured",
+        replay_admin_token="operator-token",
+    )
+    assert configured.replay_controls_enabled is True
+
+
+def test_dashboard_sensor_selection_rejects_invented_channels() -> None:
+    with pytest.raises(ValidationError, match="anonymous sensor"):
+        Settings(dashboard_default_sensor_columns=("temperature",))
+
+
 def test_online_settings_read_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TURBINE_GUARD_ONLINE_INFERENCE_ENABLED", "false")
     monkeypatch.setenv("TURBINE_GUARD_MODEL_PRELOAD_ENABLED", "false")
@@ -124,7 +152,6 @@ def test_lifecycle_thresholds_are_validated() -> None:
     "url",
     [
         "sqlite:///operational.db",
-        "postgresql://localhost/database",
         "postgresql+psycopg://localhost",
         "postgresql+psycopg://[broken",
         "",
@@ -190,3 +217,39 @@ def test_get_settings_returns_cached_instance() -> None:
         assert get_settings() is get_settings()
     finally:
         get_settings.cache_clear()
+
+
+def test_model_source_defaults_to_mlflow_and_reads_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert Settings().model_source == "mlflow"
+    monkeypatch.setenv(f"{ENV_PREFIX}MODEL_SOURCE", "deployment_bundle")
+    assert Settings().model_source == "deployment_bundle"
+
+
+def test_deployment_bundle_url_scheme_is_validated() -> None:
+    accepted = Settings(
+        deployment_bundle_url="https://example.org/bundle.tar.gz",
+        deployment_bundle_sha256="a" * 64,
+    )
+    assert accepted.deployment_bundle_url == "https://example.org/bundle.tar.gz"
+    with pytest.raises(ValidationError, match="https:// or file://"):
+        Settings(
+            deployment_bundle_url="http://example.org/bundle.tar.gz",
+            deployment_bundle_sha256="a" * 64,
+        )
+
+
+def test_deployment_bundle_sha256_must_be_hexadecimal() -> None:
+    with pytest.raises(ValidationError, match="64 hexadecimal"):
+        Settings(
+            deployment_bundle_url="https://example.org/bundle.tar.gz",
+            deployment_bundle_sha256="not-a-checksum",
+        )
+
+
+def test_deployment_bundle_url_and_pin_are_required_together() -> None:
+    with pytest.raises(ValidationError, match="configured together"):
+        Settings(deployment_bundle_url="https://example.org/bundle.tar.gz")
+    with pytest.raises(ValidationError, match="configured together"):
+        Settings(deployment_bundle_sha256="a" * 64)

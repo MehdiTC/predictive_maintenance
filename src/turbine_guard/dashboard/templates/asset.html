@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}TurbineGuard · {{ asset.external_asset_id }}{% endblock %}
+{% block head %}<script defer src="https://cdn.plot.ly/plotly-3.1.0.min.js"></script>{% endblock %}
+{% block content %}
+<section class="hero compact">
+  <div><p class="eyebrow">ASSET HEALTH</p><h1>{{ asset.external_asset_id }}</h1><p class="lede">Cycle {{ asset.latest_cycle or '—' }} · {{ asset.asset_status }} · model v{{ asset.model_version or '—' }}</p></div>
+  <span class="badge large {{ asset.risk_level or 'unknown' }}">{{ asset.risk_level or 'unknown' }}</span>
+</section>
+<section class="metric-grid asset-metrics">
+  <article><small>Predicted RUL</small><strong>{{ '%.1f' | format(asset.predicted_rul) if asset.predicted_rul is not none else '—' }}</strong><span>cycles</span></article>
+  <article><small>Uncertainty interval</small><strong class="small-value">{% if asset.lower_rul is not none %}{{ '%.1f' | format(asset.lower_rul) }}–{{ '%.1f' | format(asset.upper_rul) }}{% else %}—{% endif %}</strong><span>lower–upper</span></article>
+  <article><small>Within 30</small><strong>{{ 'Yes' if asset.failure_within_30 else 'No' if asset.failure_within_30 is not none else '—' }}</strong><span>critical horizon</span></article>
+  <article><small>Within 50</small><strong>{{ 'Yes' if asset.failure_within_50 else 'No' if asset.failure_within_50 is not none else '—' }}</strong><span>warning horizon</span></article>
+  <article><small>Feature contract</small><strong class="small-value">v{{ asset.feature_version or '—' }}</strong><span>shared offline/online</span></article>
+  <article><small>Freshness</small><strong class="small-value">{{ 'stale' if asset.stale else 'current' }}</strong><span>{{ asset.latest_observation_at.strftime('%Y-%m-%d %H:%M') if asset.latest_observation_at else 'no reading' }}</span></article>
+</section>
+{% if asset.data_quality_warnings %}<div class="notice warning-notice"><strong>Data-quality notes</strong>{% for warning in asset.data_quality_warnings %}<span>{{ warning }}</span>{% endfor %}</div>{% endif %}
+<section class="panel"><div class="panel-heading"><div><p class="eyebrow">FORECAST</p><h2>RUL and calibrated interval</h2></div><span>{{ asset.predictions | length }} points</span></div><div id="rul-chart" class="chart" aria-label="Predicted RUL and interval chart"></div>{% if not asset.predictions %}<div class="empty"><p>No prediction history is available.</p></div>{% endif %}</section>
+<section class="panel"><div class="panel-heading"><div><p class="eyebrow">RISK HISTORY</p><h2>Risk-level changes over cycles</h2></div><span>Healthy · warning · critical</span></div><div id="risk-chart" class="chart compact-chart" aria-label="Risk level history chart"></div></section>
+<section class="panel"><div class="panel-heading"><div><p class="eyebrow">ANONYMOUS CHANNELS</p><h2>Selected sensor history</h2></div><span>No physical meanings assigned</span></div>
+  <form method="get" class="sensor-picker"><fieldset><legend>Choose up to six sensors</legend>{% for sensor in asset.available_sensor_columns %}<label><input type="checkbox" name="sensor" value="{{ sensor }}" {% if sensor in asset.sensor_columns %}checked{% endif %}>{{ sensor }}</label>{% endfor %}</fieldset><button type="button" id="apply-sensors">Apply selection</button></form>
+  <div id="sensor-chart" class="chart" aria-label="Selected anonymous sensor chart"></div>{% if not asset.sensor_history %}<div class="empty"><p>No sensor history is available.</p></div>{% endif %}
+</section>
+<div class="two-column"><section class="panel"><div class="panel-heading"><div><p class="eyebrow">EVENTS</p><h2>Maintenance and outcomes</h2></div></div>{% if asset.maintenance_events %}<div class="timeline">{% for event in asset.maintenance_events %}<article><span></span><div><strong>{{ event.event_type | replace('_',' ') }}</strong><small>Cycle {{ event.event_cycle or '—' }} · {{ event.occurred_at.strftime('%Y-%m-%d %H:%M') }}</small><p>{{ event.description or 'No additional description.' }}</p></div></article>{% endfor %}</div>{% else %}<div class="empty"><p>No maintenance or failure outcomes are recorded.</p></div>{% endif %}</section>
+<section class="panel"><div class="panel-heading"><div><p class="eyebrow">RECENT PREDICTIONS</p><h2>Versioned history</h2></div><a href="/dashboard/predictions">All history →</a></div>{% if asset.predictions %}<div class="table-wrap"><table><thead><tr><th>Cycle</th><th>RUL</th><th>Risk</th><th>Latency</th></tr></thead><tbody>{% for item in asset.predictions[-12:] | reverse %}<tr><td>{{ item.cycle }}</td><td>{{ '%.1f' | format(item.predicted_rul) }}</td><td><span class="badge {{ item.risk_level }}">{{ item.risk_level }}</span></td><td>{{ '%.2f ms' | format(item.latency_ms) if item.latency_ms is not none else '—' }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}</section></div>
+<script type="application/json" id="asset-data">{{ asset.model_dump(mode='json') | tojson }}</script>
+{% endblock %}
+{% block scripts %}<script defer src="/static/asset.js"></script>{% endblock %}

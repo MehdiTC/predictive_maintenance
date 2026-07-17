@@ -1,59 +1,30 @@
 """Thread-safe lazy MLflow champion loading and feature-contract verification."""
 
-import math
 import threading
-from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Protocol
 
 import mlflow
-import pandas as pd
 from mlflow.exceptions import MlflowException
 from mlflow.tracking import MlflowClient
 
 from turbine_guard.config.settings import Settings
-from turbine_guard.features.config import FeatureConfig
 from turbine_guard.features.manifest import feature_config_from_manifest, load_feature_manifest
+from turbine_guard.serving.champion import (
+    LoadedChampion,
+    ModelMetadata,
+    PyFuncModel,
+    validate_prediction_output,
+)
 from turbine_guard.tracking.config import MlflowConfig
+from turbine_guard.tracking.lifecycle import aliases, configured_mlflow
 
-
-class PyFuncModel(Protocol):
-    """Minimal model behavior required by the inference service."""
-
-    metadata: Any
-
-    def predict(self, model_input: pd.DataFrame) -> pd.DataFrame: ...
-
-
-@dataclass(frozen=True)
-class ModelMetadata:
-    """Registry and evaluation identity exposed by the online API."""
-
-    model_name: str
-    version: str
-    alias: str
-    source_run_id: str
-    target_definition: str
-    rul_cap: int | None
-    feature_count: int
-    feature_version: str
-    validation_rmse: float | None
-    replay_rmse: float | None
-    official_test_rmse: float | None
-    conformal_coverage_target: float | None
-    loaded_at: datetime
-    checksum: str | None
-    lineage_id: str | None
-
-
-@dataclass(frozen=True)
-class LoadedChampion:
-    """Cached model plus the exact shared feature configuration it accepts."""
-
-    model: PyFuncModel
-    metadata: ModelMetadata
-    feature_config: FeatureConfig
-    feature_columns: tuple[str, ...]
+__all__ = [
+    "ChampionModelLoader",
+    "LoadedChampion",
+    "ModelMetadata",
+    "PyFuncModel",
+    "validate_prediction_output",
+]
 
 
 class ChampionModelLoader:
@@ -96,6 +67,11 @@ class ChampionModelLoader:
         return loaded.feature_columns == tuple(
             loaded.model.metadata.get_input_schema().input_names()
         )
+
+    def registry_aliases(self) -> dict[str, str]:
+        """Return the live registry alias-to-version assignments."""
+        with configured_mlflow(self._config) as client:
+            return aliases(client, self._config)
 
     def _load(self) -> LoadedChampion:
         try:
@@ -155,28 +131,20 @@ class ChampionModelLoader:
                 loaded_at=datetime.now(UTC),
                 checksum=tags.get("turbine_guard.champion_bundle_sha256"),
                 lineage_id=tags.get("turbine_guard.execution_id"),
+                model_family=run.data.tags.get("model_family"),
+                git_sha=(tags.get("git_sha") or run.data.tags.get("git_commit_sha")),
+                dataset_checksum=(
+                    run.data.tags.get("raw_acquisition_manifest_sha256")
+                    or run.data.tags.get("validation_report_sha256")
+                ),
+                feature_manifest_checksum=(
+                    tags.get("feature_manifest_sha256")
+                    or run.data.tags.get("feature_manifest_sha256")
+                ),
             )
             return LoadedChampion(model, metadata, feature_config, expected)
         except (MlflowException, OSError, ValueError, KeyError) as exc:
             raise RuntimeError("MLflow champion could not be loaded and verified.") from exc
-
-
-def validate_prediction_output(frame: pd.DataFrame) -> tuple[float, float, float, str]:
-    """Validate one rich pyfunc output without trusting registry artifacts blindly."""
-    required = ("predicted_rul", "lower_rul", "upper_rul", "risk_level")
-    if len(frame) != 1 or tuple(frame.columns) != required:
-        raise ValueError("Champion returned an invalid output schema.")
-    point = float(frame.iloc[0]["predicted_rul"])
-    lower = float(frame.iloc[0]["lower_rul"])
-    upper = float(frame.iloc[0]["upper_rul"])
-    risk = str(frame.iloc[0]["risk_level"])
-    if not all(math.isfinite(value) for value in (point, lower, upper)):
-        raise ValueError("Champion returned non-finite RUL output.")
-    if not 0 <= lower <= point <= upper:
-        raise ValueError("Champion returned invalid RUL interval ordering.")
-    if risk not in {"healthy", "warning", "critical"}:
-        raise ValueError("Champion returned an invalid risk level.")
-    return point, lower, upper, risk
 
 
 def _optional_float(value: str | None) -> float | None:

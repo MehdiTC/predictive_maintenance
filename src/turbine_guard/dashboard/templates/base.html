@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>{% block title %}TurbineGuard{% endblock %}</title>
+  <link rel="stylesheet" href="/static/dashboard.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/dashboard" aria-label="TurbineGuard fleet dashboard">
+      <span class="brand-mark">TG</span>
+      <span><strong>TurbineGuard</strong><small>Predictive maintenance</small></span>
+    </a>
+    <nav aria-label="Primary">
+      <a class="{% if page == 'fleet' %}active{% endif %}" href="/dashboard">Fleet</a>
+      <a class="{% if page == 'predictions' %}active{% endif %}" href="/dashboard/predictions">Predictions</a>
+      <a class="{% if page == 'models' %}active{% endif %}" href="/dashboard/models">Model</a>
+      <a class="{% if page == 'monitoring' %}active{% endif %}" href="/dashboard/monitoring">Monitoring</a>
+      <a href="/docs">API</a>
+    </nav>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <footer>
+    <p>TurbineGuard is an independently developed predictive-maintenance platform using public NASA simulated turbofan degradation data. It contains no proprietary client data or implementation details.</p>
+    <p>Anonymous C-MAPSS sensor channels are shown without invented physical meanings.</p>
+  </footer>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

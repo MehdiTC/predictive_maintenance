@@ -3,16 +3,20 @@
 ## Project Status
 
 **Project:** TurbineGuard
-**Current phase:** Loop 10 complete and validated
-**Active loop:** None — awaiting review before Loop 11
-**Overall status:** TurbineGuard now has one locked, non-root Python 3.12 application image; a
-production-style Compose topology for PostgreSQL, MLflow, migrations, API, monitoring worker,
-replay, and explicit bootstrap; real dependency-aware health checks; and GitHub Actions for Python
-quality, PostgreSQL migration/integration, local MLflow, image contracts, and API smoke testing.
-All 402 tests pass across the generic and real-PostgreSQL runs, the final image and isolated
-Compose persistence smoke pass, and migration `20260713_0003` is at head. No Loop 11 dashboard or
-public-deployment functionality exists.
-**Last updated:** 2026-07-13
+**Current phase:** Loop 11 implemented and locally validated; free-tier public deployment pending
+**Active loop:** Loop 11 — Dashboard and Public Deployment
+**Overall status:** TurbineGuard now includes a server-rendered FastAPI dashboard, bounded read-only
+dashboard APIs, safe public-demo replay controls, and — per the owner's zero-cost decision
+(ADR 0011) — a free deployment architecture: one free Render web service, external Neon free-tier
+PostgreSQL, and an immutable checksum-pinned deployment bundle replacing the live MLflow service.
+The paid Render Blueprint (~$20.80/month) was replaced on 2026-07-14. All 438 tests pass with real
+PostgreSQL; a real bundle was exported from champion v1 (491 KB), restored into a clean directory,
+and served through the actual app with readiness green, exact prediction equality with the MLflow
+pyfunc (max difference 0.0), and no `mlflow` import in the demo process. The remaining Loop 11 work
+needs only free owner accounts: create the Neon database, publish the bundle, create the free
+Render service, enter the three environment values, and verify the assigned public HTTPS URL.
+Loop 11 is therefore not declared complete, and no Loop 12 work has begun.
+**Last updated:** 2026-07-14
 
 ---
 
@@ -123,15 +127,20 @@ data/
 Loop 4 model artifacts remain under `data/models/cmapss/FD001/`. Optional Loop 5 runtime state uses
 `data/mlflow/` by default and remains gitignored. PostgreSQL operational persistence is implemented
 under `database/` and Alembic (through revision `20260713_0003`). Loop 7 serves the online API,
-Loop 8 adds replay/delayed feedback, Loop 9 adds lifecycle monitoring and promotion, and Loop 10
-adds the reusable production image, Compose topology, explicit bootstrap, and CI. Public
-deployment, distributed orchestration, and the dashboard remain absent deliberately.
+Loop 8 adds replay/delayed feedback, Loop 9 adds lifecycle monitoring and promotion, Loop 10 adds
+the reusable production image, Compose topology, explicit bootstrap, and CI, and Loop 11 adds the
+dashboard, the deployment-bundle tooling (`deployment/`, `serving/bundle_loader.py`,
+`scripts/deployment_bundle.py`, `scripts/start_demo.py`), and the zero-cost Render/Neon
+configuration (ADR 0011). The live public deployment remains pending owner account setup (free
+accounts only); distributed orchestration remains absent deliberately.
 
 ---
 
 ## Current Loop
 
-Loop 10 is complete and validated. Do not begin Loop 11 without explicit approval.
+Loop 11 implementation is complete and locally validated, including the zero-cost deployment
+architecture (ADR 0011). Finish only the account-bound free deployment (Neon database, published
+bundle, free Render service) and public verification; do not begin Loop 12.
 
 ---
 
@@ -152,6 +161,58 @@ Loop 10 is complete and validated. Do not begin Loop 11 without explicit approva
 * [x] Implemented and validated Loop 9 — monitoring, retraining, candidate evaluation, and model
   promotion (2026-07-13).
 * [x] Implemented and validated Loop 10 — containers and CI/CD (2026-07-13).
+* [ ] Complete Loop 11 — dashboard and public deployment. (Implementation and local validation
+  complete 2026-07-13; paid Render provisioning and public HTTPS verification remain.)
+
+---
+
+## Loop 11 Implementation Notes
+
+1. **Dashboard.** FastAPI/Jinja pages at `/dashboard`, asset detail, prediction history, models,
+   and monitoring use lightweight JavaScript and Plotly. Responsive, accessible empty/error/degraded
+   states retain NASA public-data framing and never assign physical meanings to anonymous sensors.
+2. **Read APIs.** Bounded `/v1` projections provide fleet, asset dashboard, prediction history,
+   alerts, model lifecycle/lineage, drift detail, delayed performance, and replay status/actions.
+   Route handlers delegate to services; set-based latest-row queries avoid raw ORM exposure and
+   N+1 fleet access.
+3. **Replay safety.** Writes are disabled by default. Public-demo mode permits only one configured
+   replay-split asset, bounded acceleration, cooldown and attempt limits, lease-based concurrency,
+   CSRF protection, and confirmed append-only reset. Protected assets, arbitrary commands, and
+   pre-completion final-cycle truth remain unavailable.
+4. **Zero-cost topology (ADR 0011, 2026-07-14).** `render.yaml` now defines exactly one free Render
+   web service; operational state lives in an external Neon free-tier PostgreSQL database entered as
+   a `sync: false` value. The paid Starter services, both persistent disks, the managed Render
+   database, and the always-on MLflow service were removed (was ~$20.80/month; now $0). Alembic runs
+   at container start because free plans have no pre-deploy phase; the single-instance service
+   cannot race its own migrations.
+5. **Deployment bundle.** `turbine_guard.deployment` exports an immutable checksum-pinned `tar.gz`
+   (~491 KB real): champion `ModelBundle`, feature/split manifests, and the processed replay
+   source/report so the Loop 8 integrity chain still verifies. A typed `deployment_manifest.json`
+   captures registry identity at export time (model name, version, aliases, source run, metrics,
+   target, feature version/count, git commit, lineage, per-file SHA-256). Export loads the champion
+   through the normal MLflow path first and refuses to package an artifact whose checksum differs
+   from the registered version. Cold start (`scripts/start_demo.py`) downloads the pinned archive,
+   verifies the archive SHA-256 and every file checksum, restores atomically with a marker written
+   last (idempotent and self-healing), migrates, and serves. Startup never trains.
+6. **Bundle serving.** `TURBINE_GUARD_MODEL_SOURCE=deployment_bundle` selects a
+   `DeploymentBundleLoader` implementing the same `ChampionLoader` protocol as the MLflow loader.
+   Shared serving output moved to `ModelBundle.predict_rich`, used by both the MLflow pyfunc and
+   bundle mode — one implementation. Serving contracts now live in the MLflow-free
+   `serving.champion` module and loaders import lazily, so the demo process never imports MLflow
+   (verified; relevant on 512 MB free instances). The dashboard labels bundle mode as an immutable
+   exported champion snapshot; registry mutation is structurally impossible publicly. Live MLflow,
+   promotion, and retraining remain in the local Compose stack.
+7. **Security/degradation.** Render generates the application secret; the Neon URL and bundle
+   URL/SHA-256 pin are dashboard-entered (`sync: false`), never in Git. Production trusted hosts,
+   proxy headers, conservative CORS, CSP/HSTS and other response headers are configured. Pages
+   suppress tracebacks and internal URLs and remain useful when empty or degraded. Compose-based
+   image validation from 2026-07-13 (bootstrap, 29-cycle replay, dependency-restart persistence)
+   remains valid for the local reference topology.
+8. **External boundary.** Real-champion bundle export, `file://` restore into a clean directory,
+   app boot in bundle mode (readiness green: database/model/feature_contract), exported-snapshot
+   dashboard labeling, MLflow-equivalence (max prediction difference 0.0), and no-MLflow-import were
+   all verified locally on 2026-07-14. Public HTTPS, Render cold-start behavior, and Neon runtime
+   limits require the owner's free Render/Neon/publishing accounts, so Loop 11 remains active.
 
 ---
 
@@ -542,6 +603,9 @@ Loop 10 is complete and validated. Do not begin Loop 11 without explicit approva
 * Use Docker Compose for local orchestration.
 * Use a lightweight server-rendered dashboard.
 * Use Render as the initial planned public deployment target.
+* Loop 11 (ADR 0011): zero-cost public demo — one free Render web service, external Neon free-tier
+  PostgreSQL, and an immutable checksum-pinned deployment bundle instead of a live public MLflow
+  service; live MLflow remains the local Compose reference topology.
 * Avoid unnecessary distributed-system components.
 * Loop 0: stdlib JSON logging; local `uv run` pre-commit hooks; application factory pattern.
 * Loop 1: configurable source URL with `file://` support; verify-on-rerun checksum model; immutable read-only raw layer; manifests and datasets excluded from git.
@@ -587,12 +651,27 @@ Loops 0–10 are complete and validated. Public deployment and dashboard work re
     10 deliberately uses a separate SQLite metadata volume rather than patching dependency code.
 18. The production application image is about 696 MB because `uv.lock` includes the scientific and
     model runtime; future size work must preserve locked reproducibility and all model families.
+19. **Public verification requires owner action (free accounts only).** The zero-cost topology
+    needs the owner to create a free Neon database, publish the exported bundle at a revision-pinned
+    URL, create the free Render service, and enter the Neon URL and bundle URL/SHA-256 pin. No
+    payment approval is involved. Public HTTPS, provider cold-start behavior, and free-tier
+    allowances remain unverified until then. This is the only Loop 11 completion blocker.
+20. **Free-tier demo tradeoffs are accepted by design (ADR 0011).** Idle sleep with cold-start
+    delay, ephemeral compute filesystem (bundle re-restored on start), bounded monthly
+    compute/database allowances, and a read-only public model registry. Promotion/retraining
+    remain demonstrable only in the local Compose stack, and the dashboard says so explicitly.
 
 ---
 
 ## Immediate Next Action
 
-Review and commit Loop 10. Do not begin Loop 11 without explicit approval.
+Owner steps, all free: (1) create a Neon free-tier project/database and copy its connection
+string; (2) publish `data/deployment/turbine-guard-deployment-bundle.tar.gz` to a Hugging Face
+dataset repo (or GitHub Release) and note the revision-pinned URL plus SHA-256
+`df115b5408703a56c95a1088fdf30f10d729c237c774bb074069cc1fcd059828`; (3) create the Render Blueprint
+from `render.yaml` and enter the three `sync: false` values; (4) verify the assigned public HTTPS
+dashboard/OpenAPI/health URLs and the bounded replay demo. See
+`docs/dashboard_deployment.md` → "First deployment". Do not begin Loop 12.
 
 ---
 
@@ -630,6 +709,47 @@ Review and commit Loop 10. Do not begin Loop 11 without explicit approval.
 ---
 
 ## Validation Status
+
+Loop 11 zero-cost deployment checks run on 2026-07-14 (macOS, PostgreSQL 17, Python 3.12.13):
+
+| Check | Status | Detail |
+| --- | --- | --- |
+| `uv sync` | Pass | 168 packages resolved / 163 checked; no dependency added |
+| Ruff format/lint | Pass | 180 files already formatted; all checks passed |
+| Mypy (strict) | Pass | No issues in 103 source files |
+| Pytest (full) | Pass | 438/438 passed in 4:09 with real PostgreSQL enabled (14 new tests) |
+| Render Blueprint contract | Pass | One free web service, no disks/databases/MLflow, `sync: false` secrets, bounded demo replay env |
+| Real bundle export | Pass | Champion v1 exported (491 KB, 5 files); registered-checksum equality enforced |
+| Pinned restore | Pass | `file://` restore verified archive + per-file SHA-256; rerun `already_restored`; corrupted file self-healed |
+| Bundle serving | Pass | App booted in bundle mode: readiness `database/model/feature_contract` all true; `/dashboard` and models page render with snapshot notice |
+| MLflow equivalence | Pass | Bundle vs registry pyfunc on 25 random rows: max absolute difference 0.0; identical risk labels |
+| Memory hygiene | Pass | `mlflow` absent from `sys.modules` after bundle-mode boot and readiness |
+| Public HTTPS on Render | Pending owner | Requires free Neon/Render accounts, published bundle, and entered environment values |
+| Loop 12 boundary | Pass | No portfolio finishing, resume, architecture-graphic, or demo-video work added |
+
+Prior Loop 11 implementation checks run on 2026-07-13 (macOS, Docker Desktop, PostgreSQL 17, Python
+3.12.13):
+
+| Check | Status | Detail |
+| --- | --- | --- |
+| `uv sync` | Pass | 168 packages resolved / 163 checked; Jinja2 declared directly |
+| Ruff format/lint | Pass | 169 files already formatted; all checks passed |
+| Mypy (strict) | Pass | No issues in 95 source files |
+| Pytest (full) | Pass | 424/424 passed in 4:12 with real PostgreSQL enabled |
+| Pre-commit | Pass | Ruff format, Ruff lint, and Mypy hooks passed |
+| Render Blueprint | Pass | YAML parsed, application commands resolved, and official Render JSON Schema accepted `render.yaml` |
+| Production image/dashboard | Pass | Image built; empty and populated fleet, asset, prediction, model, monitoring, static, live, and ready routes served |
+| Bootstrap/model | Pass | Explicit CI fixture bootstrap built 552 features and registered/loaded champion v1 |
+| Replay/monitoring | Pass | Bounded replay completed 29 cycles; failure/outcomes/evaluation and one monitoring window persisted |
+| Persistence/restart | Pass | PostgreSQL/MLflow/API restart retained counts and reloaded the same champion checksum |
+| Public HTTPS/Render restart | Pending owner | Requires Render account, paid services, secret review, bootstrap, and assigned URL |
+| Loop 12 boundary | Pass | No portfolio finishing, resume, interview, architecture-graphic, or demo-video work added |
+
+The first database-enabled pytest attempt reached the host's pre-existing PostgreSQL on port 5432
+and failed only at connection setup. Remapping the dedicated Compose test database to 15432 made all
+18 PostgreSQL integrations—including the new dashboard projection test—pass in the full 424-test run.
+
+---
 
 All Loop 10 commands run on 2026-07-13 (macOS, Docker Desktop 28.3.0, PostgreSQL 17, Python
 3.12.13):
@@ -796,11 +916,12 @@ WSGI bridge. Tests, registered-model loading, prediction equality, and the UI al
 
 ## Last Completed Loop
 
-**Loop 10 — Containers and CI/CD** (2026-07-13).
+**Loop 10 — Containers and CI/CD** (2026-07-13). Loop 11 cannot be marked complete until the
+account-bound free-deployment checks pass.
 
 ---
 
 ## Next Planned Loop
 
-After Loop 10 is reviewed and separately approved: **Loop 11 — Dashboard and Public Deployment**.
-Do not begin it automatically.
+Finish **Loop 11 — Dashboard and Public Deployment** by provisioning and validating the free
+public environment (Neon database, published bundle, free Render service). Do not begin Loop 12.
