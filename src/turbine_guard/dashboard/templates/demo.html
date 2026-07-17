@@ -1,69 +1,40 @@
-{% extends "base.html" %}
-{% block title %}TurbineGuard · Live predictive-maintenance demo{% endblock %}
-{% block head %}<script defer src="https://cdn.plot.ly/plotly-3.1.0.min.js"></script>{% endblock %}
-{% block content %}
-<section class="hero demo-hero">
-  <div>
-    <p class="eyebrow">LIVE DEMO · REAL NASA DATA</p>
-    <h1>Predicting jet-engine failure before it happens</h1>
-    <p class="lede">A machine-learning system is monitoring a real NASA turbofan engine it never saw
-    during training. Press run: its sensor readings stream in cycle by cycle, and the model
-    continuously estimates how many flight cycles remain before the engine fails &mdash; with
-    calibrated confidence bounds. When the engine finally gives out, you'll see exactly how much
-    advance warning the model gave.</p>
-  </div>
-</section>
-
-<section class="metric-grid demo-stats" aria-label="Live demo state">
-  <article><small>Engine</small><strong id="demo-engine">&mdash;</strong><span>held-out NASA unit</span></article>
-  <article><small>Flight cycle</small><strong id="demo-cycle" class="numeric">&mdash;</strong><span id="demo-progress-note">not started</span></article>
-  <article><small>Predicted life left</small><strong id="demo-rul" class="numeric">&mdash;</strong><span id="demo-interval">90% range: &mdash;</span></article>
-  <article><small>Engine status</small><span id="demo-risk" class="badge unknown large">no data</span><span id="demo-risk-note">model verdict updates live</span></article>
-</section>
-
-<section class="panel">
-  <div class="panel-heading">
-    <div><p class="eyebrow">REMAINING USEFUL LIFE</p><h2>The model's live forecast</h2></div>
-    <span>Predicted cycles remaining, with 90% confidence band</span>
-  </div>
-  <div id="demo-chart" class="chart" role="img" aria-label="Predicted remaining useful life over flight cycles with confidence band"></div>
-  <div class="progress-label"><span id="demo-progress-text">Engine life consumed</span><span id="demo-progress-pct" class="numeric">0%</span></div>
-  <div class="progress"><span id="demo-progress-bar" style="width:0%"></span></div>
-  <div class="demo-controls">
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>TurbineGuard — live jet-engine failure prediction</title>
+  <link rel="stylesheet" href="/static/demo.css">
+  <script defer src="https://cdn.plot.ly/plotly-3.1.0.min.js"></script>
+</head>
+<body class="demo-body">
+  <header class="demo-top">
+    <span class="wordmark">TurbineGuard</span>
+    <a href="/dashboard">Operator console &rarr;</a>
+  </header>
+  <main class="demo-main">
+    <p class="demo-eyebrow">LIVE ML SYSTEM &middot; REAL NASA DATA</p>
+    <h1 class="demo-title">A jet engine is failing.</h1>
+    <p class="demo-sub">Watch a production machine-learning system predict how many flights it has
+    left &mdash; live, on an engine it has never seen.</p>
+    <div id="demo-chart" class="demo-chart" role="img"
+         aria-label="Predicted flights remaining over flight cycles, with 90% confidence band"></div>
+    <div class="demo-statrow" aria-live="polite">
+      <span>CYCLE<strong id="demo-cycle">&mdash;</strong></span>
+      <span>PREDICTED LIFE<strong id="demo-rul">&mdash;</strong> <em id="demo-interval"></em></span>
+      <span>STATUS<strong id="demo-risk" class="risk unknown">no data</strong></span>
+    </div>
     <button id="demo-run" class="demo-cta" type="button" disabled>Loading&hellip;</button>
-    <p id="demo-message" role="status">Checking the live system&hellip;</p>
-  </div>
-</section>
-
-<div id="demo-punchline" class="notice punchline" hidden></div>
-
-<section class="how-grid" aria-label="How it works">
-  <article class="panel how-card">
-    <h3>Real run-to-failure data</h3>
-    <p>NASA flew 100 simulated turbofan engines until each one broke down. This engine is one of
-    ten that were locked away and never shown to the model during training &mdash; the forecast you
-    see is genuinely out-of-sample.</p>
-  </article>
-  <article class="panel how-card">
-    <h3>One pipeline, training and serving</h3>
-    <p>Each streamed cycle passes through the same leakage-safe feature pipeline used in training
-    (552 trailing-window features), a versioned champion model, and a PostgreSQL record of every
-    prediction &mdash; a production-style ML system, not a notebook.</p>
-  </article>
-  <article class="panel how-card">
-    <h3>Honest uncertainty, graded later</h3>
-    <p>Every estimate ships with a calibrated 90% confidence band. After the engine fails, the
-    system backfills the truth and grades its own past predictions &mdash; visible in the
-    monitoring console.</p>
-  </article>
-</section>
-
-<section class="demo-links">
-  <a class="button" href="/dashboard">Explore the operator console &rarr;</a>
-  <a class="button" href="/dashboard/models">Model lineage &amp; metrics</a>
-  <a class="button" href="/docs">OpenAPI</a>
-</section>
-
-<script type="application/json" id="demo-data">{{ demo | tojson }}</script>
-{% endblock %}
-{% block scripts %}<script defer src="/static/demo.js"></script>{% endblock %}
+    <p id="demo-message" class="demo-msg" role="status"></p>
+    <div id="demo-punchline" class="demo-verdict" hidden></div>
+  </main>
+  <footer class="demo-foot">
+    <p>Independently developed portfolio system on public NASA C-MAPSS data; anonymous sensors; no
+    proprietary content. <a href="/dashboard/models">Model lineage</a> &middot;
+    <a href="/docs">API</a></p>
+  </footer>
+  <script type="application/json" id="demo-data">{{ demo | tojson }}</script>
+  <script defer src="/static/demo.js"></script>
+</body>
+</html>

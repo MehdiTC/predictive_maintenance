@@ -1,27 +1,37 @@
 (() => {
   const $ = (id) => document.getElementById(id);
-  const runButton = $("demo-run");
+  const btn = $("demo-run");
   const dataNode = $("demo-data");
-  if (!runButton || !dataNode) return;
+  if (!btn || !dataNode) return;
 
   let demo = null;
   try { demo = JSON.parse(dataNode.textContent); } catch { demo = null; }
-  let driving = false;
-  let spectating = false;
+  let series = (demo && demo.series) || [];
+  // Returning visitors see the recorded line immediately; new points animate in.
+  let shown = series.length;
+  let mode = "idle"; // idle | driving | watching
+  let lastProgressAt = Date.now();
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const fmt = (value) => (value == null ? "—" : String(Math.round(Number(value))));
-  const message = (text) => { $("demo-message").textContent = text; };
+  const run = () => (demo && demo.run) || null;
+  const cooldownMs = () => (((demo && demo.cooldown_seconds) || 1) * 1000) + 250;
+  const finished = () => { const r = run(); return !!r && r.status === "completed"; };
+  const active = () => { const r = run(); return !!r && !["completed", "failed"].includes(r.status); };
 
-  async function refresh() {
+  async function fetchState() {
     try {
       const response = await fetch("/v1/demo", {headers: {Accept: "application/json"}});
-      if (response.ok) demo = await response.json();
-    } catch { /* keep the last known state; the poller will retry */ }
-    render();
+      if (!response.ok) return;
+      demo = await response.json();
+      const fresh = demo.series || [];
+      if (fresh.length < shown) shown = fresh.length; // a reset shrank the series
+      if (fresh.length > series.length) lastProgressAt = Date.now();
+      series = fresh;
+    } catch { /* transient network problem; the next tick retries */ }
   }
 
-  async function action(payload) {
+  async function act(payload) {
     const response = await fetch("/v1/replay/actions", {
       method: "POST",
       headers: {"Content-Type": "application/json", Accept: "application/json"},
@@ -32,211 +42,186 @@
       if (demo) demo.run = body.run;
       return body.run;
     }
-    let code = "unknown";
     let detail = "The live system returned an error.";
     try {
       const body = await response.json();
-      code = (body.error && body.error.code) || code;
       detail = (body.error && body.error.message) || detail;
-    } catch { /* non-JSON error body */ }
+    } catch { /* non-JSON body */ }
     const error = new Error(detail);
-    error.code = code;
     error.transient = response.status === 409 || response.status === 429;
     throw error;
   }
 
-  function firstAtLevel(series, levels) {
-    return series.find((point) => levels.includes(point.risk_level)) || null;
-  }
-
-  function renderPunchline(series, run) {
-    const node = $("demo-punchline");
-    if (!run || run.status !== "completed" || run.final_cycle == null) {
-      node.hidden = true;
-      return;
-    }
-    const warning = firstAtLevel(series, ["warning", "critical"]);
-    const critical = firstAtLevel(series, ["critical"]);
-    if (warning) {
-      const lead = run.final_cycle - warning.cycle;
-      const criticalPart = critical
-        ? ` and escalated to <strong>critical</strong> at cycle ${critical.cycle}`
-        : "";
-      node.innerHTML =
-        `<strong>The engine failed at cycle ${run.final_cycle}.</strong> ` +
-        `TurbineGuard flagged it at cycle ${warning.cycle}${criticalPart} — ` +
-        `<strong>${lead} cycles of advance warning</strong> to schedule maintenance ` +
-        `before the failure. Every prediction above was made without seeing the future.`;
-    } else {
-      node.innerHTML =
-        `<strong>The engine failed at cycle ${run.final_cycle}.</strong> ` +
-        `Every prediction above was made in sequence, without seeing the future.`;
-    }
-    node.hidden = false;
-  }
-
-  function renderButton(run) {
-    runButton.disabled = false;
-    if (!demo || demo.enabled === false) {
-      runButton.disabled = true;
-      runButton.textContent = "Demo unavailable";
-    } else if (driving) {
-      runButton.disabled = true;
-      runButton.textContent = "Streaming…";
-    } else if (spectating) {
-      runButton.disabled = true;
-      runButton.textContent = "Watching live…";
-    } else if (run && run.status === "completed") {
-      runButton.textContent = "↻ Run it again";
-    } else if (run && run.last_confirmed_cycle > 0) {
-      runButton.textContent = "▶ Continue the simulation";
-    } else {
-      runButton.textContent = "▶ Run live simulation";
-    }
-  }
-
-  function drawChart(series, run) {
+  function chart() {
     if (!window.Plotly) return;
-    const cycles = series.map((p) => p.cycle);
+    const visible = series.slice(0, shown);
+    const cycles = visible.map((p) => p.cycle);
     const layout = {
       paper_bgcolor: "transparent",
       plot_bgcolor: "transparent",
-      font: {color: "#91a7ba"},
-      margin: {l: 55, r: 20, t: 12, b: 45},
-      xaxis: {title: "Flight cycle", gridcolor: "#203851", zeroline: false},
-      yaxis: {title: "Predicted cycles remaining", gridcolor: "#203851", rangemode: "tozero"},
-      legend: {orientation: "h", y: 1.08},
+      font: {color: "#8a93a0", size: 12},
+      margin: {l: 46, r: 18, t: 8, b: 40},
+      xaxis: {title: {text: "flight cycle"}, gridcolor: "#161b24", zeroline: false,
+              range: [0, Math.max(60, (cycles[cycles.length - 1] || 0) + 12)]},
+      yaxis: {title: {text: "flights remaining"}, gridcolor: "#161b24", rangemode: "tozero"},
+      showlegend: false,
       hovermode: "x unified",
       shapes: [],
       annotations: [],
     };
-    if (run && run.status === "completed" && run.final_cycle != null) {
-      layout.shapes.push({
-        type: "line", x0: run.final_cycle, x1: run.final_cycle, yref: "paper", y0: 0, y1: 1,
-        line: {color: "#ff6b74", width: 2, dash: "dash"},
-      });
-      layout.annotations.push({
-        x: run.final_cycle, yref: "paper", y: 1, text: "actual failure",
-        showarrow: false, font: {color: "#ff6b74", size: 12}, xanchor: "left", yanchor: "top",
-      });
+    const r = run();
+    if (finished() && shown === series.length && r.final_cycle != null) {
+      layout.shapes.push({type: "line", x0: r.final_cycle, x1: r.final_cycle,
+        yref: "paper", y0: 0, y1: 1, line: {color: "#ff6b74", width: 1.5, dash: "dot"}});
+      layout.annotations.push({x: r.final_cycle, yref: "paper", y: 1, text: "failure",
+        showarrow: false, font: {color: "#ff6b74", size: 11}, xanchor: "left", yanchor: "top"});
     }
-    const traces = [
-      {x: cycles, y: series.map((p) => p.upper_rul), mode: "lines",
-       line: {width: 0}, hoverinfo: "skip", showlegend: false},
-      {x: cycles, y: series.map((p) => p.lower_rul), mode: "lines", fill: "tonexty",
-       fillcolor: "rgba(99,167,255,.16)", line: {width: 0}, name: "90% confidence band",
-       hovertemplate: "band: %{y:.0f}<extra></extra>"},
-      {x: cycles, y: series.map((p) => p.predicted_rul), mode: "lines",
-       line: {color: "#63a7ff", width: 2.5}, name: "Predicted cycles remaining",
-       hovertemplate: "predicted: %{y:.0f} cycles<extra></extra>"},
-    ];
-    window.Plotly.react("demo-chart", traces, layout, {responsive: true, displaylogo: false});
+    window.Plotly.react("demo-chart", [
+      {x: cycles, y: visible.map((p) => p.upper_rul), mode: "lines",
+       line: {width: 0}, hoverinfo: "skip"},
+      {x: cycles, y: visible.map((p) => p.lower_rul), mode: "lines", fill: "tonexty",
+       fillcolor: "rgba(99,167,255,.13)", line: {width: 0},
+       hovertemplate: "90% range low: %{y:.0f}<extra></extra>"},
+      {x: cycles, y: visible.map((p) => p.predicted_rul), mode: "lines",
+       line: {color: "#63a7ff", width: 2.2},
+       hovertemplate: "predicted: %{y:.0f} flights<extra></extra>"},
+    ], layout, {responsive: true, displaylogo: false, displayModeBar: false});
   }
 
-  function render() {
-    const run = demo && demo.run;
-    const series = (demo && demo.series) || [];
-    const last = series[series.length - 1] || null;
-    $("demo-engine").textContent = demo ? `NASA #${demo.demo_source_asset_id}` : "—";
-    $("demo-cycle").textContent = run ? String(run.last_confirmed_cycle) : "—";
-    $("demo-rul").textContent = last ? `${fmt(last.predicted_rul)} cycles` : "—";
+  function stats() {
+    const point = series[shown - 1] || null;
+    $("demo-cycle").textContent = point ? String(point.cycle) : "—";
+    $("demo-rul").textContent = point ? fmt(point.predicted_rul) : "—";
     $("demo-interval").textContent =
-      last && last.lower_rul != null
-        ? `90% range: ${fmt(last.lower_rul)}–${fmt(last.upper_rul)}`
-        : "90% range: —";
+      point && point.lower_rul != null ? `(${fmt(point.lower_rul)}–${fmt(point.upper_rul)})` : "";
     const risk = $("demo-risk");
-    const level = last ? last.risk_level : null;
-    risk.textContent = level || "no data";
-    risk.className = `badge large ${level || "unknown"}`;
-    const pct = run ? Math.min(100, run.progress_percent || 0) : 0;
-    $("demo-progress-pct").textContent = `${pct}%`;
-    $("demo-progress-bar").style.width = `${pct}%`;
-    $("demo-progress-note").textContent = run ? run.status.replace("_", " ") : "not started";
-    drawChart(series, run);
-    renderPunchline(series, run);
-    renderButton(run);
+    risk.textContent = point ? point.risk_level : "no data";
+    risk.className = `risk ${point ? point.risk_level : "unknown"}`;
   }
 
-  async function spectate() {
-    spectating = true;
-    render();
-    message("Another visitor is driving the engine — watching it live.");
-    let stalled = 0;
-    while (spectating) {
-      const before = demo && demo.run ? demo.run.last_confirmed_cycle : 0;
-      await sleep(2500);
-      await refresh();
-      const run = demo && demo.run;
-      if (!run || run.status === "completed" || run.status === "failed") break;
-      stalled = run.last_confirmed_cycle > before ? 0 : stalled + 1;
-      if (stalled >= 4) break; // nobody is actually driving; offer the wheel back
+  function button() {
+    btn.disabled = false;
+    if (!demo || demo.enabled === false) {
+      btn.disabled = true;
+      btn.textContent = "Demo unavailable";
+    } else if (mode === "driving") {
+      btn.disabled = true;
+      btn.textContent = "Streaming…";
+    } else if (mode === "watching") {
+      btn.disabled = true;
+      btn.textContent = "Watching live…";
+    } else if (finished()) {
+      btn.textContent = "↻ Run it again";
+    } else {
+      btn.textContent = "▶ Run simulation";
     }
-    spectating = false;
-    render();
-    message(demo && demo.run && demo.run.status === "completed"
-      ? "Simulation complete — see the verdict below."
-      : "Ready when you are.");
   }
+
+  function message(text) { $("demo-message").textContent = text; }
+
+  function verdict() {
+    const node = $("demo-punchline");
+    const r = run();
+    if (!finished() || shown < series.length || r.final_cycle == null) {
+      node.hidden = true;
+      return;
+    }
+    const flagged = series.find((p) => p.risk_level !== "healthy");
+    if (flagged) {
+      const lead = r.final_cycle - flagged.cycle;
+      node.innerHTML =
+        `The engine failed at cycle <strong>${r.final_cycle}</strong>. ` +
+        `The model flagged trouble at cycle <strong>${flagged.cycle}</strong> — ` +
+        `<span class="lead">${lead} flights of advance warning</span>.` +
+        `<small>Every prediction was made in sequence, without seeing the future.</small>`;
+    } else {
+      node.innerHTML =
+        `The engine failed at cycle <strong>${r.final_cycle}</strong>.` +
+        `<small>Every prediction was made in sequence, without seeing the future.</small>`;
+    }
+    node.hidden = false;
+  }
+
+  function paint() { chart(); stats(); button(); verdict(); }
+
+  // Animation: reveal one point per tick so the line draws itself continuously,
+  // no matter how chunky the server responses are.
+  setInterval(() => {
+    if (shown < series.length) {
+      shown += 1;
+      paint();
+      if (mode !== "idle") {
+        message(`Streaming sensor data through the model — cycle ${series[shown - 1].cycle}`);
+      }
+    } else if (finished() && $("demo-punchline").hidden) {
+      paint();
+      if (mode === "idle") message("");
+    }
+  }, 110);
+
+  // Background poll: the page stays live without any manual refresh, whether
+  // this visitor, another visitor, or nobody is driving.
+  setInterval(async () => {
+    if (mode === "driving") return;
+    if (!active()) return;
+    await fetchState();
+    if (mode === "watching") {
+      if (finished()) { mode = "idle"; button(); message(""); return; }
+      if (Date.now() - lastProgressAt > 15000) {
+        mode = "idle";
+        button();
+        message("The run is paused — press the button to keep it going.");
+      }
+    }
+  }, 3000);
 
   async function drive() {
-    if (driving) return;
-    driving = true;
-    render();
+    if (mode !== "idle") return;
+    mode = "driving";
+    button();
     try {
-      let run = demo && demo.run;
-      if (!run || run.status === "completed" || run.status === "failed") {
-        message(run ? "Starting a fresh engine run…" : "Starting the engine…");
-        run = await action(
-          run
-            ? {action: "reset", source_asset_id: demo.demo_source_asset_id, confirm_reset: true}
-            : {action: "start", source_asset_id: demo.demo_source_asset_id}
-        );
-        await refresh();
+      let r = run();
+      if (!r || r.status === "completed" || r.status === "failed") {
+        message("Starting the engine…");
+        const payload = r
+          ? {action: "reset", source_asset_id: demo.demo_source_asset_id, confirm_reset: true}
+          : {action: "start", source_asset_id: demo.demo_source_asset_id};
+        await act(payload);
+        if (payload.action === "reset") { series = []; shown = 0; $("demo-punchline").hidden = true; }
+        await fetchState();
       }
-      const pause = ((demo && demo.cooldown_seconds) || 1) * 1000 + 300;
-      while (run && run.status !== "completed" && run.status !== "failed") {
+      while (mode === "driving") {
+        r = run();
+        if (!r || r.status === "completed" || r.status === "failed") break;
         try {
-          run = await action({action: "accelerate", run_id: run.run_id});
+          await act({action: "accelerate", run_id: r.run_id});
+          lastProgressAt = Date.now();
         } catch (error) {
-          if (error.transient) {
-            driving = false;
-            await spectate();
-            driving = true;
-            run = demo && demo.run;
-            if (!run || run.status === "completed" || run.status === "failed") break;
-            continue;
-          }
+          if (error.transient) { mode = "watching"; button(); break; }
           throw error;
         }
-        message(`Streaming real sensor data through the model… cycle ${run.last_confirmed_cycle}`);
-        await refresh();
-        await sleep(pause);
+        await fetchState();
+        await sleep(cooldownMs());
       }
-      await refresh();
-      message(
-        demo && demo.run && demo.run.status === "completed"
-          ? "Simulation complete — see the verdict below."
-          : "The run paused; press the button to continue."
-      );
+      await fetchState();
     } catch (error) {
-      message(error.message || "The demo hit a snag — try again in a moment.");
+      message(error.message || "The live system hit a snag — try again in a moment.");
     } finally {
-      driving = false;
-      render();
+      if (mode === "driving") mode = "idle";
+      paint();
     }
   }
 
-  runButton.addEventListener("click", drive);
+  btn.addEventListener("click", drive);
 
-  if (demo) {
-    render();
-    message(
-      demo.run && demo.run.status === "completed"
-        ? "A finished run is shown — replay it yourself with one click."
-        : "Press run to stream the engine's sensor data through the live model."
-    );
-  } else {
+  if (!demo) {
     message("Waking the live system…");
-    refresh().then(() => message("Press run to stream the engine's sensor data through the live model."));
+    fetchState().then(() => { paint(); message(""); });
+  }
+  paint();
+  if (demo && !series.length) {
+    message("One click streams a real engine's sensor data through the live model.");
+  } else if (demo && active()) {
+    message("An engine run is under way — press run to keep it going.");
   }
 })();

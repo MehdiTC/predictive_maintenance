@@ -444,11 +444,12 @@ def test_demo_landing_page_and_json_state() -> None:
         page = client.get("/")
         state = client.get("/v1/demo")
     assert page.status_code == 200
-    assert "Predicting jet-engine failure" in page.text
-    assert "Run live simulation" not in page.text  # button text is set by JS, not the template
+    assert "A jet engine is failing." in page.text
+    assert "Run simulation" not in page.text  # button text is set by JS, not the template
     assert 'id="demo-run"' in page.text
     assert 'id="demo-chart"' in page.text
-    assert "held out" in page.text or "locked away" in page.text
+    assert "never seen" in page.text
+    assert "NASA C-MAPSS" in page.text  # public-framing disclaimer stays on the landing page
     assert state.status_code == 200
     body = state.json()
     assert body["demo_source_asset_id"] == 9

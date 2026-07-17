@@ -217,6 +217,10 @@ bundle, free Render service) and public verification; do not begin Loop 12.
    replay form no longer runs the blocking self-HTTP replay call on the event loop (this froze
    and killed the live Render instance on 2026-07-17; a regression test now asserts threadpool
    execution), and Render demo pacing became 20 cycles/request, 1 s cooldown, 25 attempts.
+   After owner review of the first live version, the landing page was rebuilt as a standalone
+   minimal dark page (single headline, borderless chart, one pill button, ~40 words of copy)
+   with client-side point-by-point line animation and an always-on 3 s poller, so progress is
+   visible continuously without manual refresh and regardless of who is driving the run.
 9. **External boundary.** Real-champion bundle export, `file://` restore into a clean directory,
    app boot in bundle mode (readiness green: database/model/feature_contract), exported-snapshot
    dashboard labeling, MLflow-equivalence (max prediction difference 0.0), and no-MLflow-import were
