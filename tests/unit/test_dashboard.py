@@ -1,7 +1,11 @@
 """Dashboard rendering, data-contract, degraded-state, and security tests."""
 
+import asyncio
+import hmac
 import uuid
 from datetime import UTC, datetime
+from hashlib import sha256
+from types import SimpleNamespace
 from typing import cast
 
 from fastapi.testclient import TestClient
@@ -367,3 +371,45 @@ def test_production_cors_allows_only_configured_origin() -> None:
         )
     assert allowed.headers["access-control-allow-origin"] == "https://dashboard.example"
     assert "access-control-allow-origin" not in denied.headers
+
+
+def test_replay_form_action_runs_off_the_event_loop() -> None:
+    """The control service blocks on HTTP calls back to this same server.
+
+    If the form handler ran it on the event loop, the process would deadlock
+    in production (observed as hung requests and a killed instance).
+    """
+    observed: dict[str, bool] = {}
+
+    class LoopProbeReplay(FakeReplay):
+        def perform(self, *_: object, **__: object) -> object:
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                observed["on_event_loop"] = False
+            else:
+                observed["on_event_loop"] = True
+            return SimpleNamespace(message="probe completed")
+
+    secret = "dashboard-secret-for-tests"
+    settings = Settings(
+        environment=Environment.PRODUCTION,
+        online_inference_enabled=False,
+        trusted_hosts=("testserver",),
+        application_secret=secret,
+    )
+    app = create_app(
+        settings,
+        dashboard_service=cast(DashboardService, FakeDashboard()),
+        replay_control=cast(ReplayControlService, LoopProbeReplay()),
+    )
+    token = hmac.new(secret.encode(), b"dashboard-replay-v1", sha256).hexdigest()
+    with TestClient(app) as client:
+        response = client.post(
+            "/dashboard/replay",
+            data={"action": "start", "source_asset_id": "9", "csrf_token": token},
+            follow_redirects=False,
+        )
+    assert response.status_code == 303
+    assert "probe+completed" in response.headers["location"]
+    assert observed == {"on_event_loop": False}

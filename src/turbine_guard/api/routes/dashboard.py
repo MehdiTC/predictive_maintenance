@@ -10,6 +10,7 @@ from urllib.parse import parse_qs, urlencode
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from starlette.concurrency import run_in_threadpool
 
 from turbine_guard.api.schemas.dashboard import ReplayActionRequest
 from turbine_guard.services.dashboard import DashboardService
@@ -167,7 +168,9 @@ async def replay_form(request: Request) -> RedirectResponse:
             control_token=values.get("control_token") or None,
         )
         client = "unknown" if request.client is None else request.client.host
-        result = _replay(request).perform(payload, client_id=client)
+        # The control service performs blocking HTTP calls back to this same
+        # server; running it on the event loop would deadlock the process.
+        result = await run_in_threadpool(_replay(request).perform, payload, client_id=client)
         return _redirect_message(result.message)
     except (ValueError, ServiceError) as exc:
         return _redirect_message(f"Replay request rejected: {exc}")
