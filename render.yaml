@@ -53,8 +53,10 @@ services:
         value: "true"
       - key: TURBINE_GUARD_REPLAY_CONTROLS_ENABLED
         value: "true"
+      # Engine 37: shortest replay life with the strongest alert story
+      # (170 cycles, first flag at 135 -> 35 flights of advance warning).
       - key: TURBINE_GUARD_REPLAY_DEMO_SOURCE_ASSET_ID
-        value: "9"
+        value: "37"
       # Paced for the ~40-second guided landing-page simulation (ADR 0011 demo).
       - key: TURBINE_GUARD_REPLAY_PUBLIC_MAX_ACCELERATED_CYCLES
         value: "20"

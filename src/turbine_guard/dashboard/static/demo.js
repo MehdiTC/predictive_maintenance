@@ -19,16 +19,24 @@
   const finished = () => { const r = run(); return !!r && r.status === "completed"; };
   const active = () => { const r = run(); return !!r && !["completed", "failed"].includes(r.status); };
 
+  let fetching = false;
+
   async function fetchState() {
+    if (fetching) return;
+    fetching = true;
     try {
       const response = await fetch("/v1/demo", {headers: {Accept: "application/json"}});
-      if (!response.ok) return;
-      demo = await response.json();
-      const fresh = demo.series || [];
-      if (fresh.length < shown) shown = fresh.length; // a reset shrank the series
-      if (fresh.length > series.length) lastProgressAt = Date.now();
-      series = fresh;
-    } catch { /* transient network problem; the next tick retries */ }
+      if (response.ok) {
+        demo = await response.json();
+        const fresh = demo.series || [];
+        if (fresh.length < shown) shown = fresh.length; // a reset shrank the series
+        if (fresh.length > series.length) lastProgressAt = Date.now();
+        series = fresh;
+      }
+    } catch { /* transient network problem; the next tick retries */
+    } finally {
+      fetching = false;
+    }
   }
 
   async function act(payload) {
@@ -144,10 +152,11 @@
 
   function paint() { chart(); stats(); button(); verdict(); }
 
-  // Animation: reveal one point per tick so the line draws itself continuously,
-  // no matter how chunky the server responses are.
-  setInterval(() => {
-    if (shown < series.length) {
+  // Animation: reveal points continuously, pacing the reveal to the backlog so
+  // the line neither stalls waiting for the server nor dumps whole batches.
+  function animationTick() {
+    const backlog = series.length - shown;
+    if (backlog > 0) {
       shown += 1;
       paint();
       if (mode !== "idle") {
@@ -157,12 +166,15 @@
       paint();
       if (mode === "idle") message("");
     }
-  }, 110);
+    const delay = backlog >= 40 ? 40 : backlog >= 15 ? 80 : backlog >= 5 ? 150 : 320;
+    setTimeout(animationTick, delay);
+  }
+  animationTick();
 
-  // Background poll: the page stays live without any manual refresh, whether
-  // this visitor, another visitor, or nobody is driving.
+  // Poll whenever a run is active — including while this visitor is driving,
+  // because the server persists each cycle long before the batch request
+  // returns. This is what makes progress visible without any manual refresh.
   setInterval(async () => {
-    if (mode === "driving") return;
     if (!active()) return;
     await fetchState();
     if (mode === "watching") {
@@ -173,7 +185,7 @@
         message("The run is paused — press the button to keep it going.");
       }
     }
-  }, 3000);
+  }, 2000);
 
   async function drive() {
     if (mode !== "idle") return;
