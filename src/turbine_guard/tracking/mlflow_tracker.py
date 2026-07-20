@@ -727,8 +727,8 @@ def _model_card(
 ## Purpose and provenance
 
 This model estimates Remaining Useful Life for the public NASA C-MAPSS FD001 simulated turbofan
-dataset. Sensors remain anonymous. It is an independent educational system and is not deployed at
-Genelba or trained on proprietary industrial data.
+dataset. Sensors remain anonymous. It is an independent educational system, is not trained on
+proprietary industrial data, and has not been deployed in any proprietary industrial system.
 
 ## Model and target
 

@@ -115,8 +115,8 @@ lead; it pays inspection, planned repair, and early-replacement cost for forfeit
 No/late alerts pay unplanned failure, downtime, and missed-failure cost. Base, lower-failure-cost,
 and higher-failure-cost scenarios are reported per asset and in aggregate.
 
-All costs are normalized hypothetical units. They are not currency, Genelba values, or claims of
-real savings.
+All costs are normalized hypothetical units. They are not currency, real industrial values, or
+claims of real savings.
 
 ## Artifacts and reproduction
 

@@ -2,7 +2,7 @@
 
 UV ?= uv
 
-.PHONY: help install hooks format format-check lint lint-fix typecheck test check run acquire process features train train-tracked mlflow-ui mlflow-inspect mlflow-verify db-check db-upgrade db-current db-history db-downgrade db-test monitor lifecycle-status eda docker-build docker-up docker-down docker-logs docker-migrate docker-bootstrap docker-worker docker-replay-status docker-test docker-smoke
+.PHONY: help install hooks format format-check lint lint-fix typecheck test check run reproduce acquire process features train train-tracked mlflow-ui mlflow-inspect mlflow-verify db-check db-upgrade db-current db-history db-downgrade db-test monitor lifecycle-status eda docker-build docker-up docker-down docker-logs docker-migrate docker-bootstrap docker-worker docker-replay-status docker-test docker-smoke
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -35,6 +35,8 @@ check: format-check lint typecheck test ## Run all quality gates
 
 run: ## Run the API locally with auto-reload
 	$(UV) run uvicorn --factory turbine_guard.api.app:create_app --reload --host $${TURBINE_GUARD_API_HOST:-127.0.0.1} --port $${TURBINE_GUARD_API_PORT:-8000}
+
+reproduce: acquire process features train ## One command: acquire -> process -> features -> train (regenerates all offline metrics)
 
 acquire: ## Download the NASA C-MAPSS FD001 subset into data/raw
 	$(UV) run python scripts/download_data.py

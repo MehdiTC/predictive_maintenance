@@ -37,6 +37,17 @@ htmlcov/
 /*.dump
 /*.backup
 
+# Internal / non-public files (kept locally, excluded from the public repo)
+# CLAUDE.md is the local agent operating manual and references a prior engagement.
+/CLAUDE.md
+# Internal build/process scaffolding; recruiters get the public README + docs/.
+# PROJECT_SPEC.md also references a prior engagement.
+/PROJECT_SPEC.md
+/STATUS.md
+/TASKS.md
+# Accidentally-committed personal Claude Code skill; not part of the project.
+.github/skills/
+
 # Notebooks
 .ipynb_checkpoints/
 
