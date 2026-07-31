@@ -18,46 +18,11 @@ prediction. Practical commands live in the [operations runbook](operations.md).
 * **Target.** `RUL = final_cycle − current_cycle`, optionally capped at 125 cycles. The deployed
   champion predicts the capped target.
 
+![Offline data foundation and engine-level splits](assets/data-splits.svg)
+
 ## Component overview
 
-```mermaid
-flowchart TB
-    subgraph offline["Offline pipeline (batch, reproducible)"]
-        acq["Acquisition\nimmutable raw layer + manifest"]
-        proc["Processing & validation\ncanonical Parquet + report"]
-        feat["Feature build\nlabels, asset splits, 552 features"]
-        train["Training & evaluation\n4 model families, champion selection"]
-        mlflow["MLflow\nruns, metrics, model registry + aliases"]
-        acq --> proc --> feat --> train --> mlflow
-    end
-
-    subgraph online["Online service (FastAPI process)"]
-        api["/v1 API\nsensor ingestion + prediction"]
-        dash["Dashboard\nlive RUL forecast + decision view"]
-        loader["Champion loader\nMLflow registry OR pinned bundle"]
-        api --- dash
-        api --> loader
-    end
-
-    subgraph ops["Operational feedback"]
-        replay["Replay\nheld-out trajectories -> live stream"]
-        monitor["Monitoring & lifecycle\nquality, drift, delayed metrics, gates"]
-    end
-
-    pg[("PostgreSQL\noperational state")]
-    bundle["Deployment bundle\nchecksum-pinned champion snapshot"]
-
-    feat -->|shared FeatureBuilder| api
-    mlflow -->|champion alias| loader
-    mlflow -->|export| bundle
-    bundle -->|cold start| loader
-    api --> pg
-    replay -->|POST /v1/sensor-readings| api
-    replay --> pg
-    pg --> monitor
-    monitor -->|candidate + gates| mlflow
-    pg --> dash
-```
+![TurbineGuard system overview](assets/system-architecture.svg)
 
 Key structural properties encoded in this diagram:
 
@@ -101,45 +66,29 @@ Key structural properties encoded in this diagram:
    candidates must clear every blocking promotion gate (including MLflow reload equivalence) and,
    by default, human approval before the champion is replaced.
 
+### Training, calibration, and registration
+
+![Training, calibration, champion selection, and registration](assets/training-registration.svg)
+
+### Monitoring, retraining, and promotion
+
+![Delayed evaluation and guarded model promotion](assets/monitoring-promotion.svg)
+
 ## Serving one online prediction
 
 This is the request path exercised on every `POST /v1/sensor-readings` — including every cycle the
 replay client sends.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Src as Sensor source / replay
-    participant API as FastAPI /v1
-    participant DB as PostgreSQL
-    participant FB as Shared FeatureBuilder
-    participant M as Champion (registry alias or pinned bundle)
+![Online serving request and persistence path](assets/serving-request.svg)
 
-    Src->>API: POST /v1/sensor-readings (one cycle t)
-    API->>API: validate payload (3 settings + 21 sensors, cycle > 0, UTC ts)
-    API->>DB: BEGIN; lock/resolve asset; assert cycle contiguous from 1
-    alt exact duplicate cycle
-        DB-->>API: existing reading + prediction
-        API-->>Src: 200 (idempotent replay)
-    else conflicting duplicate
-        DB-->>API: conflict
-        API-->>Src: 409 (never overwrites)
-    else new cycle
-        API->>DB: read this asset's history <= t
-        API->>FB: build features for cycle t (observations <= t only)
-        FB-->>API: 552-feature row (order-checked vs manifest)
-        API->>M: predict(features)
-        M-->>API: point RUL, [lower, upper], risk class
-        API->>DB: insert reading + version-pinned prediction (one txn)
-        API->>DB: COMMIT
-        API-->>Src: 200 { rul, interval, risk, model/run/feature identity, latency }
-    end
-    Note over API,M: feature or model failure rolls back the whole request
-```
+The serving process supports two interchangeable sources for the same approved champion:
+
+![Champion model sources and prediction contract](assets/model-loading.svg)
 
 The failure cycle and future observations are never available on this path: the replay source
 reveals only cycles `≤ t`, and the final cycle is stored only in a replay-state table that no
-prediction endpoint reads.
+prediction endpoint reads. Identical repeated cycles are idempotent, conflicting duplicates return
+an error, and a feature or model failure rolls back the sensor-reading transaction.
 
 ## Deployment topologies
 

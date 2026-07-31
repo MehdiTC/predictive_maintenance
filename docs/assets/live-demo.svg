@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
-  <title id="title">Live dashboard screenshot placeholder</title>
-  <desc id="desc">Replace this asset with a screenshot or short animation of the TurbineGuard dashboard.</desc>
-  <rect width="1200" height="630" fill="#0f172a"/>
-  <rect x="70" y="70" width="1060" height="490" rx="24" fill="#172033" stroke="#334155" stroke-width="3"/>
-  <text x="600" y="285" text-anchor="middle" fill="#e2e8f0" font-family="system-ui, sans-serif" font-size="40" font-weight="700">Live dashboard</text>
-  <text x="600" y="345" text-anchor="middle" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="24">Replace with a screenshot or short GIF</text>
-</svg>

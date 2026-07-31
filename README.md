@@ -9,8 +9,9 @@ with the public NASA C-MAPSS FD001 dataset and contains no proprietary data.
 [Model card](docs/model_card.md) ·
 [Runbook](docs/operations.md)
 
-<!-- Replace this file with a real dashboard screenshot or short GIF; keep the path stable. -->
-![Live dashboard screenshot placeholder](docs/assets/live-demo.svg)
+
+![Live dashboard while the engine replay is running](docs/assets/live-demo.png)
+![Completed replay with failure, warning lead time, and model evidence](docs/assets/live-demo2.png)
 
 ## What it demonstrates
 
@@ -48,10 +49,12 @@ service uses the same feature builder, loads the champion from MLflow or a pinne
 and stores versioned predictions in PostgreSQL. Replayed failures provide delayed labels for
 monitoring and lifecycle decisions.
 
-<!-- Replace this file with a polished export of the diagram in docs/architecture.md. -->
-![Architecture diagram placeholder](docs/assets/architecture-overview.svg)
+![TurbineGuard system architecture](docs/assets/system-architecture.svg)
 
-The detailed component and request flows are in [docs/architecture.md](docs/architecture.md).
+Nothing reaches serving without passing through the registry, and monitoring returns to the registry
+rather than to the live model. Detailed diagrams for splits, training and registration, the serving
+request path, champion loading, and the promotion workflow are in
+[docs/architecture.md](docs/architecture.md).
 
 ## Quickstart
 
