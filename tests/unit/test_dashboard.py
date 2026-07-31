@@ -300,7 +300,7 @@ def test_canonical_dashboard_and_fleet_api_render_correct_values() -> None:
     assert "Remaining useful life forecast" in page.text
     assert "10.54" in page.text
     assert api.json()["items"][0]["model_version"] == "7"
-    assert "independently developed" in page.text
+    assert "Independent demonstration" in page.text
 
 
 def test_legacy_dashboard_redirects_to_canonical_dashboard() -> None:
@@ -438,7 +438,7 @@ def test_demo_landing_page_and_json_state() -> None:
         page = client.get("/")
         state = client.get("/v1/demo")
     assert page.status_code == 200
-    assert "How long does this engine have left?" in page.text
+    assert "Engine health dashboard" in page.text
     assert "simulated turbofan data" in page.text
     assert 'id="demo-run"' in page.text
     assert 'id="demo-chart"' in page.text

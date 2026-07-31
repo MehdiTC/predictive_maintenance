@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="dark">
   <title>TurbineGuard — live remaining-life forecast</title>
   <meta name="description" content="A live predictive-maintenance demo using public NASA C-MAPSS simulated turbofan data.">
-  <link rel="stylesheet" href="/static/demo.css">
+  <link rel="stylesheet" href="/static/demo.css?v=3">
   <script defer src="https://cdn.plot.ly/plotly-3.1.0.min.js"></script>
 </head>
 <body class="demo-body">
@@ -23,10 +23,9 @@
 
   <main class="demo-main">
     <section class="demo-intro" aria-labelledby="demo-title">
-      <p class="demo-eyebrow">LIVE MODEL REPLAY &middot; PUBLIC NASA SIMULATION DATA</p>
-      <h1 id="demo-title">How long does this engine have left?</h1>
-      <p>Step through a held-out turbofan sequence and watch a deployed model update its
-        remaining-useful-life forecast as each operating cycle arrives.</p>
+      <p class="demo-eyebrow">NASA C-MAPSS &middot; FD001 LIVE REPLAY</p>
+      <h1 id="demo-title">Engine health dashboard</h1>
+      <p>Remaining-life forecast and maintenance status for one held-out engine.</p>
     </section>
 
     <section class="dashboard-grid" aria-label="Engine forecast dashboard">
@@ -39,12 +38,12 @@
           <strong id="demo-risk" class="risk unknown">No data</strong>
         </div>
 
-        <p id="demo-decision" class="decision-title">Start the replay to generate a forecast.</p>
+        <p id="demo-decision" class="decision-title">No forecast yet.</p>
         <div class="rul-reading">
           <strong id="demo-rul">&mdash;</strong>
           <span>cycles remaining</span>
         </div>
-        <p class="interval-reading">90% prediction range <strong id="demo-interval">&mdash;</strong></p>
+        <p class="interval-reading">90% range <strong id="demo-interval">&mdash;</strong></p>
 
         <dl class="decision-details">
           <div><dt>Current cycle</dt><dd id="demo-cycle">&mdash;</dd></div>
@@ -69,8 +68,7 @@
         </div>
         <div id="demo-chart" class="demo-chart" role="img"
              aria-label="Predicted operating cycles remaining, uncertainty range, and maintenance thresholds over time"></div>
-        <p class="chart-note">The shaded band is the model's 90% conformal prediction range.
-          Ground truth stays hidden until the engine reaches failure.</p>
+        <p class="chart-note">Shaded area: 90% prediction range &middot; Actual RUL appears after failure.</p>
       </section>
     </section>
 
@@ -81,7 +79,7 @@
       <div class="evidence-heading">
         <div>
           <p class="section-label">MODEL EVIDENCE</p>
-          <h2 id="evidence-heading">Held-out replay performance</h2>
+          <h2 id="evidence-heading">Held-out performance</h2>
         </div>
         <a href="/dashboard/models">Inspect model lineage &rarr;</a>
       </div>
@@ -89,30 +87,28 @@
         <article>
           <strong>{{ '%.2f' | format(evidence.mae_cycles) if evidence else '10.54' }}</strong>
           <span>cycles MAE</span>
-          <small>Average absolute RUL error</small>
+          <small>Average absolute error</small>
         </article>
         <article>
           <strong>{{ '%.1f%%' | format(evidence.interval_coverage * 100) if evidence else '89.8%' }}</strong>
           <span>interval coverage</span>
-          <small>Nominal 90% prediction range</small>
+          <small>Nominal target: 90%</small>
         </article>
         <article>
           <strong>{{ '%.0f%%' | format(evidence.critical_recall * 100) if evidence else '77%' }}</strong>
           <span>critical-alert recall</span>
-          <small>At the 30-cycle horizon</small>
+          <small>30-cycle horizon</small>
         </article>
       </div>
-      <p class="evidence-note">Metrics summarize held-out replay engines, not this single trajectory.
-        Thresholds are warning at 50 cycles and critical at 30 cycles.</p>
+      <p class="evidence-note">10 replay engines &middot; warning &le; 50 cycles &middot; critical &le; 30 cycles</p>
     </section>
   </main>
 
   <footer class="demo-foot">
-    <p>TurbineGuard is an independently developed demonstration on public NASA C-MAPSS simulated
-      turbofan data. Sensor channels are anonymous and no proprietary data is used.</p>
+    <p>Independent demonstration &middot; public NASA simulated data &middot; anonymous sensors</p>
   </footer>
 
   <script type="application/json" id="demo-data">{{ demo | tojson }}</script>
-  <script defer src="/static/demo.js"></script>
+  <script defer src="/static/demo.js?v=3"></script>
 </body>
 </html>

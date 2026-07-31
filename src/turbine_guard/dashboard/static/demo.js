@@ -190,20 +190,20 @@
 
     const copy = {
       healthy: {
-        title: "Forecast remains above the maintenance horizon.",
-        recommendation: "Continue monitoring. No maintenance action is indicated by the current forecast.",
+        title: "Above maintenance thresholds.",
+        recommendation: "Continue monitoring. No action indicated.",
       },
       warning: {
-        title: "The forecast has entered the warning horizon.",
-        recommendation: "Plan maintenance. The predicted life has crossed the 50-cycle warning threshold.",
+        title: "Inside the 50-cycle warning horizon.",
+        recommendation: "Plan maintenance.",
       },
       critical: {
-        title: "The forecast has entered the critical horizon.",
-        recommendation: "Prioritize maintenance. The predicted life is at or below the 30-cycle critical threshold.",
+        title: "Inside the 30-cycle critical horizon.",
+        recommendation: "Prioritize maintenance now.",
       },
       unknown: {
-        title: "Start the replay to generate a forecast.",
-        recommendation: "No maintenance decision is available yet.",
+        title: "No forecast yet.",
+        recommendation: "Start the replay to generate a decision.",
       },
     }[risk];
     $("demo-decision").textContent = copy.title;
