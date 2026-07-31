@@ -10,7 +10,6 @@ with the public NASA C-MAPSS FD001 dataset and contains no proprietary data.
 [Runbook](docs/operations.md)
 
 
-![Live dashboard while the engine replay is running](docs/assets/live-demo.png)
 ![Completed replay with failure, warning lead time, and model evidence](docs/assets/live-demo2.png)
 
 ## What it demonstrates
