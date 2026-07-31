@@ -1,8 +1,68 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
-  <title id="title">Model performance chart placeholder</title>
-  <desc id="desc">Replace this asset with a chart generated from the TurbineGuard evaluation reports.</desc>
-  <rect width="1200" height="630" fill="#f8fafc"/>
-  <rect x="70" y="70" width="1060" height="490" rx="24" fill="#ffffff" stroke="#cbd5e1" stroke-width="3"/>
-  <text x="600" y="285" text-anchor="middle" fill="#0f172a" font-family="system-ui, sans-serif" font-size="40" font-weight="700">Model performance</text>
-  <text x="600" y="345" text-anchor="middle" fill="#64748b" font-family="system-ui, sans-serif" font-size="24">Replace with an evaluation chart</text>
+  <title id="title">TurbineGuard champion model performance</title>
+  <desc id="desc">Validation and held-out replay MAE and RMSE bars, plus held-out interval coverage, critical-alert recall, mean alert lead time, and the official NASA final-row benchmark RMSE.</desc>
+  <rect width="1200" height="630" rx="20" fill="#fbfaf7"/>
+
+  <text x="52" y="58" fill="#171717" font-family="system-ui, sans-serif" font-size="30" font-weight="700">Champion model performance</text>
+  <text x="52" y="87" fill="#686762" font-family="system-ui, sans-serif" font-size="15">Ridge regression · capped RUL target · public NASA C-MAPSS FD001 simulation</text>
+
+  <rect x="42" y="116" width="674" height="446" rx="16" fill="#ffffff" stroke="#d7d5ce"/>
+  <text x="70" y="153" fill="#171717" font-family="system-ui, sans-serif" font-size="18" font-weight="650">RUL error by evaluation role</text>
+  <text x="70" y="177" fill="#77756f" font-family="system-ui, sans-serif" font-size="13">Cycles · lower is better · every operating cycle scored</text>
+
+  <line x1="116" y1="490" x2="682" y2="490" stroke="#aaa7a0" stroke-width="1.5"/>
+  <line x1="116" y1="416" x2="682" y2="416" stroke="#e5e3de"/>
+  <line x1="116" y1="342" x2="682" y2="342" stroke="#e5e3de"/>
+  <line x1="116" y1="268" x2="682" y2="268" stroke="#e5e3de"/>
+  <line x1="116" y1="194" x2="682" y2="194" stroke="#e5e3de"/>
+
+  <text x="99" y="495" text-anchor="end" fill="#77756f" font-family="system-ui, sans-serif" font-size="12">0</text>
+  <text x="99" y="421" text-anchor="end" fill="#77756f" font-family="system-ui, sans-serif" font-size="12">4</text>
+  <text x="99" y="347" text-anchor="end" fill="#77756f" font-family="system-ui, sans-serif" font-size="12">8</text>
+  <text x="99" y="273" text-anchor="end" fill="#77756f" font-family="system-ui, sans-serif" font-size="12">12</text>
+  <text x="99" y="199" text-anchor="end" fill="#77756f" font-family="system-ui, sans-serif" font-size="12">16</text>
+
+  <rect x="198" y="294" width="78" height="196" rx="7" fill="#45b8a0"/>
+  <rect x="286" y="234" width="78" height="256" rx="7" fill="#6259c9"/>
+  <text x="237" y="284" text-anchor="middle" fill="#116652" font-family="system-ui, sans-serif" font-size="14" font-weight="700">10.62</text>
+  <text x="325" y="224" text-anchor="middle" fill="#40379b" font-family="system-ui, sans-serif" font-size="14" font-weight="700">13.83</text>
+
+  <rect x="438" y="295" width="78" height="195" rx="7" fill="#45b8a0"/>
+  <rect x="526" y="232" width="78" height="258" rx="7" fill="#6259c9"/>
+  <text x="477" y="285" text-anchor="middle" fill="#116652" font-family="system-ui, sans-serif" font-size="14" font-weight="700">10.54</text>
+  <text x="565" y="222" text-anchor="middle" fill="#40379b" font-family="system-ui, sans-serif" font-size="14" font-weight="700">13.96</text>
+
+  <text x="281" y="521" text-anchor="middle" fill="#42413e" font-family="system-ui, sans-serif" font-size="14" font-weight="600">Validation</text>
+  <text x="521" y="521" text-anchor="middle" fill="#42413e" font-family="system-ui, sans-serif" font-size="14" font-weight="600">Held-out replay</text>
+
+  <rect x="184" y="544" width="12" height="12" rx="3" fill="#45b8a0"/>
+  <text x="204" y="555" fill="#5e5c57" font-family="system-ui, sans-serif" font-size="12">MAE</text>
+  <rect x="256" y="544" width="12" height="12" rx="3" fill="#6259c9"/>
+  <text x="276" y="555" fill="#5e5c57" font-family="system-ui, sans-serif" font-size="12">RMSE</text>
+
+  <rect x="738" y="116" width="420" height="208" rx="16" fill="#eef9f6" stroke="#92d3c4"/>
+  <text x="766" y="153" fill="#155e4f" font-family="system-ui, sans-serif" font-size="13" font-weight="700" letter-spacing="1.5">UNCERTAINTY</text>
+  <text x="766" y="211" fill="#113d34" font-family="system-ui, sans-serif" font-size="48" font-weight="750">89.8%</text>
+  <text x="766" y="240" fill="#285f53" font-family="system-ui, sans-serif" font-size="16" font-weight="600">empirical interval coverage</text>
+  <rect x="766" y="267" width="350" height="10" rx="5" fill="#cfe9e2"/>
+  <rect x="766" y="267" width="314" height="10" rx="5" fill="#2c9f86"/>
+  <line x1="1081" y1="259" x2="1081" y2="285" stroke="#1f6959" stroke-width="2"/>
+  <text x="1116" y="302" text-anchor="end" fill="#52766e" font-family="system-ui, sans-serif" font-size="12">90% nominal target</text>
+
+  <rect x="738" y="344" width="198" height="101" rx="14" fill="#f5f2ff" stroke="#c9c2ec"/>
+  <text x="760" y="377" fill="#4a419b" font-family="system-ui, sans-serif" font-size="28" font-weight="750">76.8%</text>
+  <text x="760" y="402" fill="#47436b" font-family="system-ui, sans-serif" font-size="13" font-weight="650">critical-alert recall</text>
+  <text x="760" y="424" fill="#77728f" font-family="system-ui, sans-serif" font-size="11">30-cycle horizon</text>
+
+  <rect x="960" y="344" width="198" height="101" rx="14" fill="#fff4ef" stroke="#e7bdab"/>
+  <text x="982" y="377" fill="#8f3e20" font-family="system-ui, sans-serif" font-size="28" font-weight="750">26.1</text>
+  <text x="982" y="402" fill="#6c493b" font-family="system-ui, sans-serif" font-size="13" font-weight="650">cycles mean alert lead</text>
+  <text x="982" y="424" fill="#917467" font-family="system-ui, sans-serif" font-size="11">first critical signal</text>
+
+  <rect x="738" y="461" width="420" height="101" rx="14" fill="#f3f2ef" stroke="#cfcdc7"/>
+  <text x="760" y="494" fill="#4d4b46" font-family="system-ui, sans-serif" font-size="13" font-weight="700" letter-spacing="1.2">OFFICIAL NASA BENCHMARK</text>
+  <text x="760" y="530" fill="#242321" font-family="system-ui, sans-serif" font-size="28" font-weight="750">14.41 cycles RMSE</text>
+  <text x="760" y="551" fill="#77756f" font-family="system-ui, sans-serif" font-size="12">one final row per engine</text>
+
+  <text x="52" y="604" fill="#77756f" font-family="system-ui, sans-serif" font-size="12">Held-out replay: 10 engines, 2,155 cycles · capped-domain metrics · source: reproducible evaluation reports</text>
 </svg>

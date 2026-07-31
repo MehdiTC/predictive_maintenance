@@ -72,7 +72,7 @@ approximation, not a strict trajectory-level exchangeability guarantee.
 
 Alerts fire when predicted RUL falls to or below a horizon: **critical ≤ 30 cycles**, **warning ≤ 50
 cycles**. On the replay engines the champion reached critical-alert recall of about 0.77 with a
-false-alarm rate under 1 per 1,000 observed cycles in the capped evaluation domain.
+false-alarm rate of 3.25 per 1,000 observed cycles in the capped evaluation domain.
 
 ## Simulated maintenance-policy results
 
