@@ -1,4 +1,4 @@
-"""Typed configuration for Loop 4 offline model training and evaluation."""
+"""Typed configuration for offline model training and evaluation."""
 
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
@@ -186,7 +186,7 @@ def default_sensitivity_scenarios() -> tuple[SensitivityScenario, ...]:
 
 @dataclass(frozen=True)
 class TrainingConfig:
-    """Aggregate configuration for one deterministic Loop 4 training run."""
+    """Aggregate configuration for one deterministic model training run."""
 
     data_dir: Path = Path("data")
     subset: str = "FD001"
@@ -232,12 +232,12 @@ class TrainingConfig:
 
     @property
     def features_dir(self) -> Path:
-        """Loop 3 input directory."""
+        """Feature input directory."""
         return self.data_dir / "features" / "cmapss" / self.subset
 
     @property
     def artifacts_dir(self) -> Path:
-        """Loop 4 output directory."""
+        """Model output directory."""
         return self.output_dir or self.data_dir / "models" / "cmapss" / self.subset
 
 

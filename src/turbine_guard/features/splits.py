@@ -11,14 +11,14 @@ sliced into contiguous blocks whose sizes come from the configured fractions
 via largest-remainder rounding. The same seed and asset set always yield the
 same partitions.
 
-The four partitions have distinct roles that later loops depend on:
+The four partitions have distinct downstream roles:
 
 * ``train`` — fits models and any preprocessing.
 * ``validation`` — model selection and tuning.
-* ``calibration`` — held out for conformal prediction intervals (Loop 4);
+* ``calibration`` — held out for conformal prediction intervals;
   kept separate from train and validation.
 * ``replay`` — held out entirely from initial training so it can be streamed
-  as "live" sensor data in Loop 8; never used for fitting, feature selection,
+  as "live" sensor data in the replay subsystem; never used for fitting, feature selection,
   calibration, or threshold tuning.
 
 The official NASA *test* set is not touched here; it remains a separate,

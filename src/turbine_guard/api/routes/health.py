@@ -22,7 +22,7 @@ def read_liveness() -> LivenessResponse:
 def read_readiness(request: Request, response: Response) -> ReadinessResponse:
     """Report whether the service's dependencies allow it to handle requests.
 
-    Offline/test applications may inject an empty map. Loop 7 online mode
+    Offline and test applications may inject an empty map. Online inference
     requires PostgreSQL, the champion model, and feature compatibility.
     """
     result = check_readiness(request.app.state.readiness_checks)

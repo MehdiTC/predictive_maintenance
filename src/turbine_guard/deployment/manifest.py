@@ -24,7 +24,7 @@ REQUIRED_BUNDLE_FILES = (
 )
 """Everything serving needs, relative to the application data directory.
 
-The train Parquet, processing report, and split manifest let the Loop 8
+The train Parquet, processing report, and split manifest let the replay subsystem
 replay source re-verify its checksum chain; the feature manifest defines the
 shared serving feature contract; the champion joblib is the model itself.
 """

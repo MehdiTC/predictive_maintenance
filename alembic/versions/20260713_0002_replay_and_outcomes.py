@@ -1,4 +1,4 @@
-"""Add Loop 8 replay-run state and realized prediction outcomes.
+"""Add replay-run state and realized prediction outcomes.
 
 Revision ID: 20260713_0002
 Revises: 20260712_0001

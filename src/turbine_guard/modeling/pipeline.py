@@ -1,4 +1,4 @@
-"""End-to-end offline Loop 4 training, selection, calibration, and evaluation."""
+"""End-to-end offline model training, selection, calibration, and evaluation."""
 
 import copy
 import logging
@@ -77,7 +77,7 @@ class TrainingStatus(StrEnum):
 
 
 class TrainingError(RuntimeError):
-    """Raised when Loop 4 cannot produce a complete trustworthy run."""
+    """Raised when model training cannot produce a complete trustworthy run."""
 
 
 @dataclass(frozen=True)
@@ -167,9 +167,9 @@ def fit_candidate_bundle(
     conformal: SplitConformalCalibrator,
     metadata: dict[str, Any],
 ) -> ModelBundle:
-    """Fit one established Loop 4 candidate on an explicitly supplied safe training frame.
+    """Fit one established model candidate on an explicitly supplied safe training frame.
 
-    Loop 9 owns asset eligibility and role isolation; this function remains the
+    The monitoring subsystem owns asset eligibility and role isolation; this function remains the
     single point-model/preprocessing/bundle construction path.
     """
     features = model_matrix(training_frame, feature_columns)
@@ -191,7 +191,7 @@ def fit_candidate_bundle(
 def prediction_latency_ms(
     bundle: ModelBundle, features: pd.DataFrame, *, repeats: int = 5
 ) -> float:
-    """Measure median per-row bundle inference latency using Loop 4 semantics."""
+    """Measure median per-row bundle inference latency using training-time semantics."""
     if repeats < 1 or features.empty:
         raise ValueError("Latency measurement requires data and at least one repeat.")
     batch = features.iloc[: min(512, len(features))]
@@ -205,7 +205,7 @@ def prediction_latency_ms(
 
 
 def train_models(config: TrainingConfig) -> TrainingResult:
-    """Run the complete Loop 4 boundary without any Loop 5 tracking/registry work."""
+    """Run complete model training without any MLflow tracking or registry work."""
     try:
         data = load_verified_model_data(config)
         existing = (
@@ -701,7 +701,7 @@ def _interpret_models(
         "top_20_xgboost_importance_share": top20_share,
         "simpler_subset_observation": (
             "A concentrated top-20 share suggests a smaller feature subset may be competitive, "
-            "but Loop 3 is not redesigned in this loop."
+            "but the feature pipeline is not modified during model training."
             if top20_share is not None and top20_share >= 0.70
             else (
                 "Importance is not concentrated enough to justify a smaller subset without a "
@@ -736,4 +736,4 @@ def _verify_inputs_unchanged(data: VerifiedModelData, config: TrainingConfig) ->
         path = config.features_dir / filename
         actual = sha256_path(path)
         if actual != expected:
-            raise ModelDataError(f"Loop 3 input changed during training: {filename}.")
+            raise ModelDataError(f"feature input changed during training: {filename}.")

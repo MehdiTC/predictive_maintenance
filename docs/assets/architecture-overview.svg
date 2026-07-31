@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Architecture diagram placeholder</title>
+  <desc id="desc">Replace this asset with a polished export of the TurbineGuard system architecture.</desc>
+  <rect width="1200" height="630" fill="#f8fafc"/>
+  <rect x="70" y="70" width="1060" height="490" rx="24" fill="#ffffff" stroke="#cbd5e1" stroke-width="3"/>
+  <text x="600" y="285" text-anchor="middle" fill="#0f172a" font-family="system-ui, sans-serif" font-size="40" font-weight="700">System architecture</text>
+  <text x="600" y="345" text-anchor="middle" fill="#64748b" font-family="system-ui, sans-serif" font-size="24">Replace with a polished architecture export</text>
+</svg>

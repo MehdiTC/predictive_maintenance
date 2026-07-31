@@ -1,4 +1,4 @@
-"""Optional real-FD001 Loop 5 tracking/registry integration test."""
+"""Optional real-FD001 MLflow tracking/registry integration test."""
 
 from pathlib import Path
 
@@ -14,7 +14,7 @@ TRAINING_MANIFEST = REPO_DATA_DIR / "models" / "cmapss" / "FD001" / "training_ma
 pytestmark = [
     pytest.mark.real_data,
     pytest.mark.skipif(
-        not TRAINING_MANIFEST.exists(), reason="FD001 Loop 4 artifacts not available"
+        not TRAINING_MANIFEST.exists(), reason="FD001 modeling artifacts not available"
     ),
 ]
 

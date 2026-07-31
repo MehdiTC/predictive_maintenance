@@ -68,7 +68,7 @@ class PromotionGateResult:
 def champion_candidate_config(
     *, model_family: str, parameters: dict[str, str], candidate_name: str
 ) -> CandidateConfig:
-    """Recover one existing Loop 4 family/configuration from MLflow run parameters."""
+    """Recover one existing model family and configuration from MLflow run parameters."""
     kind = ModelKind(model_family)
     allowed = {
         ModelKind.CONSTANT: set(),
@@ -99,7 +99,7 @@ def train_candidate(
     training_config: TrainingConfig,
     metadata: dict[str, Any],
 ) -> TrainedCandidate:
-    """Retrain the champion family/target through Loop 4's established fit path."""
+    """Retrain the champion family and target through the established fit path."""
     target = TargetConfig(champion_bundle.target_name, champion_bundle.target_cap)
     bundle = fit_candidate_bundle(
         training_frame=training_frame,
@@ -266,7 +266,7 @@ def _bundle_metrics(
 
 
 def training_config_minimum_lead() -> int:
-    """Loop 4's established default; bundle stores horizons but not this policy scalar."""
+    """Training default; bundles store horizons but not this policy scalar."""
     return 1
 
 

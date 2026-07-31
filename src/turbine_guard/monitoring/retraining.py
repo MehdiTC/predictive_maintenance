@@ -1,4 +1,4 @@
-"""Leakage-safe asset assignment and Loop 4 candidate retraining."""
+"""Leakage-safe asset assignment and model candidate retraining."""
 
 import hashlib
 from dataclasses import dataclass
@@ -100,7 +100,7 @@ def assemble_holdout_frame(
 def load_original_training_frame(
     data_dir: Path, *, expected_feature_columns: tuple[str, ...]
 ) -> pd.DataFrame:
-    """Load only the verified Loop 3 training role; protected roles are never opened."""
+    """Load only the verified training role; protected roles are never opened."""
     base = data_dir / "features" / "cmapss" / "FD001"
     manifest = load_feature_manifest(base / "feature_manifest.json")
     if tuple(manifest.feature_columns) != expected_feature_columns:

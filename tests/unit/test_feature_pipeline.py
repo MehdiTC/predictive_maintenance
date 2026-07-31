@@ -142,7 +142,7 @@ def test_missing_processing_report_rejected(tmp_path: Path) -> None:
         build_features(build(tmp_path / "data"))
 
 
-def test_tampered_loop2_output_detected(processed_data_dir: Path) -> None:
+def test_tampered_processing_output_detected(processed_data_dir: Path) -> None:
     train_parquet = processed_data_dir / "processed" / "cmapss" / "FD001" / "train_FD001.parquet"
     train_parquet.write_bytes(train_parquet.read_bytes() + b"corrupt")
 

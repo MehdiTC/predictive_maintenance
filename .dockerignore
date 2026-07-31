@@ -24,10 +24,7 @@ db-dumps
 notebooks
 tests
 docs
-CLAUDE.md
-PROJECT_SPEC.md
-STATUS.md
-TASKS.md
+.local
 .pre-commit-config.yaml
 .python-version
 .DS_Store

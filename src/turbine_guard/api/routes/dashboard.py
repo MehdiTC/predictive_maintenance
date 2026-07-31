@@ -1,4 +1,4 @@
-"""Server-rendered Loop 11 pages with progressive chart enhancement."""
+"""Server-rendered dashboard pages with progressive chart enhancement."""
 
 import hmac
 import uuid
@@ -49,29 +49,10 @@ def demo_page(request: Request) -> HTMLResponse:
     )
 
 
-@router.get("/dashboard", response_class=HTMLResponse)
-def fleet_page(request: Request, offset: int = 0) -> HTMLResponse:
-    try:
-        fleet = _dashboard(request).fleet(
-            limit=request.app.state.settings.api_default_page_size, offset=max(0, offset)
-        )
-        alerts = _dashboard(request).alerts(limit=50)
-        replay = _replay(request).status(limit=10)
-        return templates.TemplateResponse(
-            request,
-            "fleet.html",
-            _context(
-                request,
-                page="fleet",
-                fleet=fleet,
-                alerts=alerts,
-                replay=replay,
-                csrf_token=_csrf_token(request),
-                message=request.query_params.get("message"),
-            ),
-        )
-    except Exception:
-        return _degraded(request, "Fleet data is temporarily unavailable.")
+@router.get("/dashboard")
+def dashboard_redirect() -> RedirectResponse:
+    """Keep old public links working while presenting one canonical dashboard."""
+    return RedirectResponse("/", status_code=308)
 
 
 @router.get("/dashboard/assets/{asset_id}", response_class=HTMLResponse)
@@ -214,7 +195,7 @@ def _valid_csrf(request: Request, supplied: str | None) -> bool:
 
 
 def _redirect_message(message: str) -> RedirectResponse:
-    return RedirectResponse(f"/dashboard?{urlencode({'message': message})}", status_code=303)
+    return RedirectResponse(f"/?{urlencode({'message': message})}", status_code=303)
 
 
 def _optional_int(value: str | None) -> int | None:

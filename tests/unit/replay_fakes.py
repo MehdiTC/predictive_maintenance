@@ -1,6 +1,6 @@
 """In-memory fakes implementing the replay store and ingestion contracts.
 
-``FakeOnlineSystem`` mimics the Loop 7 ingestion semantics (contiguity,
+``FakeOnlineSystem`` mimics the online ingestion semantics (contiguity,
 exact-retry idempotency, model-version-pinned predictions) over shared
 in-memory tables, and ``InMemoryReplayStateStore`` implements
 ``ReplayStateStore`` over the same tables, so orchestrator unit tests can
@@ -77,7 +77,7 @@ class FakeOnlineSystem:
 
 
 class FakeIngestionClient:
-    """Loop 7 ingestion semantics without HTTP; records every payload sent."""
+    """Online ingestion semantics without HTTP; records every payload sent."""
 
     def __init__(self, system: FakeOnlineSystem) -> None:
         self.system = system

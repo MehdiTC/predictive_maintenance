@@ -1,4 +1,4 @@
-"""Typed, configurable Loop 9 monitoring and lifecycle thresholds."""
+"""Typed configuration for monitoring and model-lifecycle thresholds."""
 
 from dataclasses import dataclass
 

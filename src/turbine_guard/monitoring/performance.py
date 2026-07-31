@@ -1,4 +1,4 @@
-"""Delayed production performance reports composed from Loop 4 metric functions."""
+"""Delayed production performance reports composed from shared metric functions."""
 
 from dataclasses import dataclass
 from typing import Any

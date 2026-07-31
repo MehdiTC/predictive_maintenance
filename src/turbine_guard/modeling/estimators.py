@@ -1,4 +1,4 @@
-"""Leakage-safe point-model pipelines for the bounded Loop 4 candidate set."""
+"""Leakage-safe point-model pipelines for the bounded model candidate set."""
 
 from typing import Any
 

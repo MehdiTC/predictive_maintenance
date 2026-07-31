@@ -2,7 +2,7 @@
 
 For a training asset ``i`` observed to fail at its final cycle ``T_i``, the RUL
 at cycle ``t`` is ``T_i - t``. Because training trajectories are complete
-run-to-failure records with contiguous cycles ``1..T_i`` (enforced by Loop 2
+run-to-failure records with contiguous cycles ``1..T_i`` (enforced during data
 validation), ``T_i`` is simply the asset's maximum observed cycle and the
 uncapped RUL decreases by exactly one each cycle, reaching zero at failure.
 

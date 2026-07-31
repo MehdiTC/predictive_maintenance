@@ -1,4 +1,4 @@
-"""FastAPI application factory and explicit Loop 7 resource lifespan."""
+"""FastAPI application factory and explicit online resource lifespan."""
 
 import logging
 import re

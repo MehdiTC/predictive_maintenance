@@ -15,6 +15,7 @@ from turbine_guard.api.schemas.dashboard import (
     AlertAssetItem,
     AlertSummaryResponse,
     AssetDashboardResponse,
+    DemoEvidenceResponse,
     DemoPredictionPoint,
     DemoStateResponse,
     DriftDetailResponse,
@@ -222,6 +223,14 @@ class FakeDashboard:
             max_attempts=25,
             max_cycles_per_request=20,
             cooldown_seconds=1.0,
+            warning_horizon=50,
+            critical_horizon=30,
+            evidence=DemoEvidenceResponse(
+                evaluation_set="held-out replay engines",
+                mae_cycles=10.54,
+                interval_coverage=0.898,
+                critical_recall=0.77,
+            ),
         )
 
     def model(self) -> ModelOverviewResponse:
@@ -283,26 +292,22 @@ def _client(dashboard: FakeDashboard | None = None) -> TestClient:
     return TestClient(app)
 
 
-def test_fleet_page_and_json_render_correct_values() -> None:
+def test_canonical_dashboard_and_fleet_api_render_correct_values() -> None:
     with _client() as client:
-        page = client.get("/dashboard")
+        page = client.get("/")
         api = client.get("/v1/fleet")
     assert page.status_code == 200
-    assert "demo-asset-9" in page.text
-    assert "24.5" in page.text
-    assert "15.0–34.0" in page.text  # noqa: RUF001 - matches rendered interval typography
-    assert "critical" in page.text
+    assert "Remaining useful life forecast" in page.text
+    assert "10.54" in page.text
     assert api.json()["items"][0]["model_version"] == "7"
     assert "independently developed" in page.text
 
 
-def test_empty_fleet_has_intentional_empty_state() -> None:
-    dashboard = FakeDashboard()
-    dashboard.empty = True
-    with _client(dashboard) as client:
-        response = client.get("/dashboard")
-    assert response.status_code == 200
-    assert "No assets yet" in response.text
+def test_legacy_dashboard_redirects_to_canonical_dashboard() -> None:
+    with _client() as client:
+        response = client.get("/dashboard", follow_redirects=False)
+    assert response.status_code == 308
+    assert response.headers["location"] == "/"
 
 
 def test_asset_detail_chart_data_and_missing_asset() -> None:
@@ -332,27 +337,16 @@ def test_prediction_model_drift_and_performance_pages() -> None:
 
 def test_secrets_and_internal_urls_never_reach_html() -> None:
     with _client() as client:
-        body = client.get("/dashboard").text
+        body = client.get("/").text
     assert "secret:secret" not in body
     assert "internal-db" not in body
     assert "internal-mlflow" not in body
 
 
-def test_degraded_page_hides_exception_and_production_traceback() -> None:
-    dashboard = FakeDashboard()
-    dashboard.fail = True
-    with _client(dashboard) as client:
-        response = client.get("/dashboard")
-    assert response.status_code == 503
-    assert "temporarily unavailable" in response.text
-    assert "postgresql+psycopg" not in response.text
-    assert "Traceback" not in response.text
-
-
 def test_security_headers_and_trusted_host() -> None:
     with _client() as client:
-        response = client.get("/dashboard")
-        rejected = client.get("/dashboard", headers={"host": "attacker.example"})
+        response = client.get("/")
+        rejected = client.get("/", headers={"host": "attacker.example"})
     assert response.headers["x-frame-options"] == "DENY"
     assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
     assert response.headers["strict-transport-security"].startswith("max-age=")
@@ -444,18 +438,20 @@ def test_demo_landing_page_and_json_state() -> None:
         page = client.get("/")
         state = client.get("/v1/demo")
     assert page.status_code == 200
-    assert "A jet engine is failing." in page.text
-    assert "Run simulation" not in page.text  # button text is set by JS, not the template
+    assert "How long does this engine have left?" in page.text
+    assert "simulated turbofan data" in page.text
     assert 'id="demo-run"' in page.text
     assert 'id="demo-chart"' in page.text
-    assert "never seen" in page.text
-    assert "NASA C-MAPSS" in page.text  # public-framing disclaimer stays on the landing page
+    assert "NASA C-MAPSS" in page.text
     assert state.status_code == 200
     body = state.json()
     assert body["demo_source_asset_id"] == 9
     assert body["series"][0]["cycle"] == 42
     assert body["series"][0]["risk_level"] == "critical"
     assert body["max_cycles_per_request"] >= 1
+    assert body["warning_horizon"] == 50
+    assert body["critical_horizon"] == 30
+    assert body["evidence"]["interval_coverage"] == 0.898
 
 
 def test_demo_page_renders_degraded_without_data_access() -> None:

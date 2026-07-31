@@ -1,4 +1,4 @@
-"""Durable Loop 9 monitoring, retraining, promotion, and rollback orchestration."""
+"""Durable monitoring, retraining, promotion, and rollback orchestration."""
 
 import hashlib
 import json

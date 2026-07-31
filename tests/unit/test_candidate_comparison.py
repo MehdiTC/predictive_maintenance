@@ -1,4 +1,4 @@
-"""Real Loop 4 bundle retraining and identical promotion-holdout comparison."""
+"""Real bundle retraining and identical promotion-holdout comparison."""
 
 import pandas as pd
 from sklearn.pipeline import Pipeline

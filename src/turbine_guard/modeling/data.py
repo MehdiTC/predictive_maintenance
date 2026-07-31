@@ -1,4 +1,4 @@
-"""Verification and loading of the Loop 3 model-ready feature contract."""
+"""Verification and loading of the model-ready feature contract."""
 
 from dataclasses import dataclass
 from enum import StrEnum
@@ -32,7 +32,7 @@ class DatasetRole(StrEnum):
 
 
 class ModelDataError(RuntimeError):
-    """Raised when Loop 3 artifacts cannot safely be used for modeling."""
+    """Raised when feature artifacts cannot safely be used for modeling."""
 
 
 @dataclass(frozen=True)
@@ -60,14 +60,14 @@ def load_verified_model_data(config: TrainingConfig) -> VerifiedModelData:
     split_manifest_path = base / "split_manifest.json"
     if not feature_manifest_path.exists() or not split_manifest_path.exists():
         raise ModelDataError(
-            f"Loop 3 manifests are missing under {base}. Run feature generation first "
+            f"Feature manifests are missing under {base}. Run feature generation first "
             "(uv run python scripts/build_features.py)."
         )
     try:
         feature_manifest = load_feature_manifest(feature_manifest_path)
         split_manifest = load_split_manifest(split_manifest_path)
     except (OSError, ValueError) as exc:
-        raise ModelDataError(f"Loop 3 manifests could not be read: {exc}") from exc
+        raise ModelDataError(f"Feature manifests could not be read: {exc}") from exc
 
     if feature_manifest.dataset_subset != config.subset:
         raise ModelDataError(
@@ -79,7 +79,7 @@ def load_verified_model_data(config: TrainingConfig) -> VerifiedModelData:
         raise ModelDataError("Split manifest checksum does not match the feature manifest.")
     if feature_manifest.imputation is not None:
         raise ModelDataError(
-            "Loop 3 feature manifest unexpectedly records fitted imputation; Loop 4 expects "
+            "Feature manifest unexpectedly records fitted imputation; model training expects "
             "structural nulls and fits preprocessing on training rows itself."
         )
 
@@ -159,11 +159,11 @@ def _verify_output_checksums(base: Path, manifest: FeatureManifest) -> None:
     for record in manifest.outputs:
         path = base / record.filename
         if not path.exists():
-            raise ModelDataError(f"Loop 3 output {path} is missing.")
+            raise ModelDataError(f"Feature output {path} is missing.")
         actual = sha256_of(path)
         if actual != record.sha256:
             raise ModelDataError(
-                f"Loop 3 output checksum mismatch for {path}: expected {record.sha256}, "
+                f"Feature output checksum mismatch for {path}: expected {record.sha256}, "
                 f"found {actual}."
             )
 

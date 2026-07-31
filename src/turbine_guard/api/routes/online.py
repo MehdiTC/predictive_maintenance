@@ -1,4 +1,4 @@
-"""Thin versioned routes over the Loop 7 application service."""
+"""Thin versioned routes over the inference application service."""
 
 import uuid
 from typing import Annotated, Any

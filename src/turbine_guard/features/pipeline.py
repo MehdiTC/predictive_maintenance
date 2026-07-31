@@ -2,12 +2,12 @@
 
 The build boundary is::
 
-    validated FD001 trajectories (Loop 2 Parquet)
+    validated FD001 trajectories (processed Parquet)
             -> RUL labels + asset-level split
             -> leakage-safe features (shared FeatureBuilder)
             -> model-ready Parquet per partition + split/feature manifests
 
-It reuses the Loop 2 idempotency model: the Loop 2 processing report is the
+It reuses the processing stage's idempotency model: the processing report is the
 source of truth for the inputs; a feature build verifies those inputs by
 checksum, and on re-run compares the recorded inputs, configuration, and output
 checksums. When everything matches, nothing is rewritten. Tampered or missing
@@ -16,7 +16,7 @@ rebuilds.
 
 No model training, scaling, feature selection, or imputation happens here.
 Structurally undefined early-cycle feature values are left null and handled by
-the Loop 4 model pipeline.
+model training.
 """
 
 import logging
@@ -93,12 +93,12 @@ class FeatureBuildConfig:
 
     @property
     def processed_dir(self) -> Path:
-        """Directory holding the Loop 2 validated Parquet inputs."""
+        """Directory holding the validated Parquet inputs."""
         return self.data_dir / "processed" / "cmapss" / self.subset
 
     @property
     def report_path(self) -> Path:
-        """Location of the Loop 2 processing report (the input source of truth)."""
+        """Location of the processing report (the input source of truth)."""
         return self.processed_dir / "processing_report.json"
 
     @property
@@ -137,7 +137,7 @@ def build_features(config: FeatureBuildConfig) -> FeatureBuildResult:
 
     Idempotent: when the feature manifest already reflects the current inputs
     and configuration and every output verifies by checksum, nothing is
-    rewritten. Raises :class:`FeatureBuildError` when Loop 2 outputs are
+    rewritten. Raises :class:`FeatureBuildError` when processed-data outputs are
     missing/tampered, generated labels fail validation, or existing outputs are
     tampered with. Never modifies the raw, validated, or processed layers.
     """
@@ -391,31 +391,34 @@ def _build_feature_manifest(
 
 
 def _load_and_verify_inputs(config: FeatureBuildConfig) -> tuple[ProcessingReport, str]:
-    """Load the Loop 2 report and verify its Parquet outputs are untampered."""
+    """Load the processing report and verify its Parquet outputs are untampered."""
     report_path = config.report_path
     if not report_path.exists():
         raise FeatureBuildError(
-            f"No Loop 2 processing report found at {report_path}. Run processing first "
+            f"No processing report found at {report_path}. Run processing first "
             "(make process, or: uv run python scripts/process_data.py)."
         )
     try:
         report = load_report(report_path)
     except (ValueError, OSError) as exc:
-        raise FeatureBuildError(f"Loop 2 report {report_path} could not be read: {exc}") from exc
+        raise FeatureBuildError(
+            f"Processing report {report_path} could not be read: {exc}"
+        ) from exc
     if not report.passed:
         raise FeatureBuildError(
-            f"Loop 2 report {report_path} did not pass validation; cannot build features."
+            f"Processing report {report_path} did not pass validation; cannot build features."
         )
     for record in report.outputs:
         path = config.processed_dir / record.filename
         if not path.exists():
             raise FeatureBuildError(
-                f"Loop 2 output {path} is missing. Re-run processing before building features."
+                f"Processed-data output {path} is missing. Re-run processing before "
+                "building features."
             )
         digest = sha256_of(path)
         if digest != record.sha256:
             raise FeatureBuildError(
-                f"Loop 2 output {path} does not match the processing report checksum "
+                f"Processed-data output {path} does not match the processing report checksum "
                 f"({record.sha256} expected, {digest} found). Re-run processing."
             )
     return report, sha256_of(report_path)

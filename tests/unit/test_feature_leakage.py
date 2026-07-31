@@ -1,6 +1,6 @@
 """Explicit leakage-protection tests for the feature pipeline.
 
-These prove the core Loop 3 guarantee: a feature at cycle ``t`` can only depend
+These prove that a feature at cycle ``t`` can only depend
 on observations at cycles ``<= t`` for the same asset, and no fitted state
 crosses split boundaries.
 """

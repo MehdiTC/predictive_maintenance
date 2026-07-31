@@ -1,4 +1,4 @@
-"""End-to-end replay over real PostgreSQL and the real Loop 7 HTTP contract."""
+"""End-to-end replay over real PostgreSQL and the real online inference HTTP contract."""
 
 import uuid
 from datetime import UTC, datetime, timedelta

@@ -1,1 +1,1 @@
-"""Online model-loading boundary for Loop 7 serving."""
+"""Online model-loading boundary for online serving."""

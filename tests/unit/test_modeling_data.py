@@ -1,4 +1,4 @@
-"""Loop 4 data-contract and training-only preprocessing tests."""
+"""Model data-contract and training-only preprocessing tests."""
 
 import json
 from pathlib import Path

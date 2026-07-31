@@ -1,4 +1,4 @@
-"""Versioned HTTP contracts for Loop 7 online inference and asset health."""
+"""Versioned HTTP contracts for online inference and asset health."""
 
 import uuid
 from datetime import UTC, datetime

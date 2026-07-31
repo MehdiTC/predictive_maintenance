@@ -1,4 +1,4 @@
-"""Concise management CLI for Loop 9 model-lifecycle operations."""
+"""Concise management CLI for model-lifecycle operations."""
 
 import argparse
 import json

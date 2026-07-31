@@ -1,4 +1,4 @@
-"""Add Loop 9 monitoring and model-lifecycle persistence.
+"""Add monitoring and model-lifecycle persistence.
 
 Revision ID: 20260713_0003
 Revises: 20260713_0002

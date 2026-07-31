@@ -1,4 +1,4 @@
-"""Small-fixture Loop 4 pipeline, artifact, idempotency, and CLI tests."""
+"""Small-fixture model training, artifact, idempotency, and CLI tests."""
 
 import hashlib
 import json
@@ -128,7 +128,7 @@ def test_invalid_configuration_failure() -> None:
         TrainingConfig(conformal_coverage=1.0)
 
 
-def test_loop3_feature_artifacts_remain_unchanged(feature_data_dir: Path, tmp_path: Path) -> None:
+def test_feature_artifacts_remain_unchanged(feature_data_dir: Path, tmp_path: Path) -> None:
     features_dir = feature_data_dir / "features" / "cmapss" / "FD001"
     before = {
         path: hashlib.sha256(path.read_bytes()).hexdigest()

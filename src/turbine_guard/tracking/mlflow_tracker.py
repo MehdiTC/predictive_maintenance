@@ -68,7 +68,7 @@ class MlflowTrackingError(RuntimeError):
 
 
 class MlflowTracker:
-    """Isolated MLflow adapter over completed Loop 4 local artifacts."""
+    """Isolated MLflow adapter over completed local modeling artifacts."""
 
     def __init__(self, config: MlflowConfig) -> None:
         self.config = config
@@ -539,7 +539,7 @@ class MlflowTracker:
                 if item["candidate_id"] == selected
             )
             if not bool(selected_record["eligible"]):
-                raise MlflowTrackingError("Loop 4 selected model is not promotion-eligible.")
+                raise MlflowTrackingError("Selected model is not promotion-eligible.")
             if previous_champion is not None and previous_champion != version_value:
                 client.set_registered_model_alias(
                     name, self.config.archived_alias, previous_champion
@@ -610,7 +610,7 @@ class MlflowTracker:
 
     def _version_description(self, artifacts: TrackingArtifacts) -> str:
         return (
-            f"Selected by Loop 4 validation-only gates as "
+            f"Selected by validation-only gates as "
             f"{artifacts.training_manifest.selected_candidate_id}. "
             f"{artifacts.selection_report['rationale']}"
         )

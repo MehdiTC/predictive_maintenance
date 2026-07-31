@@ -93,8 +93,8 @@ def processed_data_dir(
 ) -> Path:
     """A data directory with the split-sized FD001 fixture acquired and processed.
 
-    Produces the on-disk Loop 2 Parquet outputs and processing report that the
-    feature pipeline and CLI consume, without the real dataset or the network.
+    Produces the on-disk processed Parquet outputs and processing report that the
+    feature generator and CLI consume, without the real dataset or the network.
     """
     archive = cmapss_archive_factory(contents=feature_fixture_contents)
     data_dir = tmp_path / "data"
@@ -105,7 +105,7 @@ def processed_data_dir(
 
 @pytest.fixture
 def feature_data_dir(processed_data_dir: Path) -> Path:
-    """A complete small Loop 3 feature layer for Loop 4 unit tests."""
+    """A complete small feature layer for model-training unit tests."""
     build_features(FeatureBuildConfig(data_dir=processed_data_dir))
     return processed_data_dir
 

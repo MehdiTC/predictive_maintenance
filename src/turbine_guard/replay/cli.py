@@ -52,7 +52,10 @@ def build_parser(settings: Settings) -> argparse.ArgumentParser:
         "--data-dir",
         type=Path,
         default=settings.data_dir,
-        help="Base data directory holding the verified Loop 2/3 layers (default: %(default)s)",
+        help=(
+            "Base data directory holding the verified processed-data and feature layers "
+            "(default: %(default)s)"
+        ),
     )
     parser.add_argument(
         "--api-base-url",

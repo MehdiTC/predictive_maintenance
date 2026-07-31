@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Train and evaluate the bounded Loop 4 FD001 model candidates."""
+"""Train and evaluate the bounded FD001 model candidates."""
 
 import sys
 

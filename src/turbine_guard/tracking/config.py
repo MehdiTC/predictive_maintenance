@@ -1,4 +1,4 @@
-"""Typed configuration for Loop 5 MLflow tracking and registration."""
+"""Typed configuration for MLflow tracking and registration."""
 
 import hashlib
 import json

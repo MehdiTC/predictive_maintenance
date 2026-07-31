@@ -9,8 +9,8 @@ class ReadinessResult:
     """Outcome of evaluating the service's external dependencies.
 
     ``checks`` maps a dependency name to whether it is currently available.
-    Loop 0 has no external dependencies, so the map is empty and the service
-    is always ready; later loops add entries such as the database and the
+    The base application has no external dependencies, so the map is empty and the service
+    is always ready; optional runtime modes add entries such as the database and the
     champion model.
     """
 

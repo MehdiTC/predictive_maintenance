@@ -163,7 +163,7 @@ class ReplayStateStore(Protocol):
 
 
 class PostgresReplayStateStore:
-    """PostgreSQL-backed :class:`ReplayStateStore` over the Loop 6 repositories."""
+    """PostgreSQL-backed :class:`ReplayStateStore` over the operational database repositories."""
 
     def __init__(
         self,

@@ -95,8 +95,8 @@ When the champion is scored through the replay/monitoring path against realized 
 (engine 9, 201 cycles), MAE was 26.12 and RMSE 32.49 with critical-alert recall 0.645. These are
 worse than the capped replay metrics **by construction**: early-life rows have true RUL up to ~200
 while the capped champion cannot predict above 125, so those rows inflate regression error and break
-interval coverage. This is the honest operator-facing view and is documented in
-[docs/replay.md](replay.md); it is not comparable to the capped-domain replay metrics above.
+interval coverage. This is the honest operator-facing view; it is not comparable to the
+capped-domain replay metrics above.
 
 ## Provenance and reproduction
 

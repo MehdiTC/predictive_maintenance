@@ -1,4 +1,4 @@
-"""Verified bridge from Loop 4 local artifacts to MLflow logging."""
+"""Verified bridge from local model artifacts to MLflow logging."""
 
 import json
 from dataclasses import dataclass
@@ -39,7 +39,7 @@ class TrackingArtifacts:
 
     @property
     def execution_id(self) -> str:
-        """Stable identity of this exact completed Loop 4 artifact set."""
+        """Stable identity of this exact completed model artifact set."""
         return self.training_manifest_sha256
 
 
@@ -48,17 +48,17 @@ def load_tracking_artifacts(config: TrainingConfig) -> TrackingArtifacts:
     root = config.artifacts_dir
     manifest_path = root / "training_manifest.json"
     if not manifest_path.exists():
-        raise ArtifactError(f"Loop 4 training manifest is missing: {manifest_path}.")
+        raise ArtifactError(f"Training manifest is missing: {manifest_path}.")
     try:
         manifest = TrainingManifest.model_validate_json(manifest_path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
-        raise ArtifactError(f"Loop 4 training manifest is unreadable: {exc}") from exc
+        raise ArtifactError(f"Training manifest is unreadable: {exc}") from exc
     for record in manifest.artifacts:
         path = root / record.filename
         if not path.exists():
-            raise ArtifactError(f"Loop 4 artifact is missing: {path}.")
+            raise ArtifactError(f"Model artifact is missing: {path}.")
         if sha256_path(path) != record.sha256:
-            raise ArtifactError(f"Loop 4 artifact checksum mismatch: {path}.")
+            raise ArtifactError(f"Model artifact checksum mismatch: {path}.")
 
     acquisition = config.data_dir / "manifests" / f"cmapss_{config.subset.lower()}.json"
     validation = config.data_dir / "processed" / "cmapss" / config.subset / "processing_report.json"

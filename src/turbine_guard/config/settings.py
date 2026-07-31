@@ -120,7 +120,7 @@ class Settings(BaseSettings):
     application_secret: str | None = None
 
     replay_api_base_url: str = "http://127.0.0.1:8000"
-    """Base URL of the running Loop 7 inference API the replay client targets."""
+    """Base URL of the online inference API targeted by the replay client."""
 
     replay_cycle_delay_seconds: float = 1.0
     """Default wait between cycles in continuous replay mode."""
@@ -417,7 +417,7 @@ class Settings(BaseSettings):
         if self.api_default_page_size > self.api_max_page_size:
             raise ValueError("Default API page size must not exceed the maximum.")
         if self.api_max_page_size > 200:
-            raise ValueError("Loop 7 API page size cannot exceed 200.")
+            raise ValueError("Online API page size cannot exceed 200.")
         if self.api_port > 65_535:
             raise ValueError("API port must not exceed 65535.")
         if self.monitoring_psi_warning > self.monitoring_psi_detected:

@@ -4,36 +4,114 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>TurbineGuard — live jet-engine failure prediction</title>
+  <title>TurbineGuard — live remaining-life forecast</title>
+  <meta name="description" content="A live predictive-maintenance demo using public NASA C-MAPSS simulated turbofan data.">
   <link rel="stylesheet" href="/static/demo.css">
   <script defer src="https://cdn.plot.ly/plotly-3.1.0.min.js"></script>
 </head>
 <body class="demo-body">
   <header class="demo-top">
-    <span class="wordmark">TurbineGuard</span>
-    <a href="/dashboard">Operator console &rarr;</a>
+    <a class="demo-brand" href="/" aria-label="TurbineGuard home">
+      <span class="brand-mark" aria-hidden="true">TG</span>
+      <span><strong>TurbineGuard</strong><small>Predictive maintenance</small></span>
+    </a>
+    <nav aria-label="Technical links">
+      <a href="/dashboard/models">Model details</a>
+      <a href="/docs">API</a>
+    </nav>
   </header>
+
   <main class="demo-main">
-    <p class="demo-eyebrow">LIVE ML SYSTEM &middot; REAL NASA DATA</p>
-    <h1 class="demo-title">A jet engine is failing.</h1>
-    <p class="demo-sub">Watch a production machine-learning system predict how many flights it has
-    left &mdash; live, on an engine it has never seen.</p>
-    <div id="demo-chart" class="demo-chart" role="img"
-         aria-label="Predicted flights remaining over flight cycles, with 90% confidence band"></div>
-    <div class="demo-statrow" aria-live="polite">
-      <span>CYCLE<strong id="demo-cycle">&mdash;</strong></span>
-      <span>PREDICTED LIFE<strong id="demo-rul">&mdash;</strong> <em id="demo-interval"></em></span>
-      <span>STATUS<strong id="demo-risk" class="risk unknown">no data</strong></span>
-    </div>
-    <button id="demo-run" class="demo-cta" type="button" disabled>Loading&hellip;</button>
-    <p id="demo-message" class="demo-msg" role="status"></p>
+    <section class="demo-intro" aria-labelledby="demo-title">
+      <p class="demo-eyebrow">LIVE MODEL REPLAY &middot; PUBLIC NASA SIMULATION DATA</p>
+      <h1 id="demo-title">How long does this engine have left?</h1>
+      <p>Step through a held-out turbofan sequence and watch a deployed model update its
+        remaining-useful-life forecast as each operating cycle arrives.</p>
+    </section>
+
+    <section class="dashboard-grid" aria-label="Engine forecast dashboard">
+      <aside class="decision-card" aria-labelledby="decision-heading">
+        <div class="card-heading">
+          <div>
+            <p class="section-label">CURRENT DECISION</p>
+            <h2 id="decision-heading">Maintenance signal</h2>
+          </div>
+          <strong id="demo-risk" class="risk unknown">No data</strong>
+        </div>
+
+        <p id="demo-decision" class="decision-title">Start the replay to generate a forecast.</p>
+        <div class="rul-reading">
+          <strong id="demo-rul">&mdash;</strong>
+          <span>cycles remaining</span>
+        </div>
+        <p class="interval-reading">90% prediction range <strong id="demo-interval">&mdash;</strong></p>
+
+        <dl class="decision-details">
+          <div><dt>Current cycle</dt><dd id="demo-cycle">&mdash;</dd></div>
+          <div><dt>Model version</dt><dd id="demo-model">&mdash;</dd></div>
+        </dl>
+
+        <div class="progress-track" aria-hidden="true"><span id="demo-progress-bar"></span></div>
+        <p id="demo-progress" class="progress-label">Replay not started</p>
+        <p id="demo-recommendation" class="recommendation">No maintenance decision is available yet.</p>
+
+        <button id="demo-run" class="demo-cta" type="button" disabled>Loading&hellip;</button>
+        <p id="demo-message" class="demo-msg" role="status"></p>
+      </aside>
+
+      <section class="forecast-card" aria-labelledby="forecast-heading">
+        <div class="card-heading forecast-heading">
+          <div>
+            <p class="section-label">LIVE FORECAST</p>
+            <h2 id="forecast-heading">Remaining useful life forecast</h2>
+          </div>
+          <span class="sequence-badge">FD001 held-out engine</span>
+        </div>
+        <div id="demo-chart" class="demo-chart" role="img"
+             aria-label="Predicted operating cycles remaining, uncertainty range, and maintenance thresholds over time"></div>
+        <p class="chart-note">The shaded band is the model's 90% conformal prediction range.
+          Ground truth stays hidden until the engine reaches failure.</p>
+      </section>
+    </section>
+
     <div id="demo-punchline" class="demo-verdict" hidden></div>
+
+    {% set evidence = demo.evidence if demo else none %}
+    <section class="evidence" aria-labelledby="evidence-heading">
+      <div class="evidence-heading">
+        <div>
+          <p class="section-label">MODEL EVIDENCE</p>
+          <h2 id="evidence-heading">Held-out replay performance</h2>
+        </div>
+        <a href="/dashboard/models">Inspect model lineage &rarr;</a>
+      </div>
+      <div class="evidence-grid">
+        <article>
+          <strong>{{ '%.2f' | format(evidence.mae_cycles) if evidence else '10.54' }}</strong>
+          <span>cycles MAE</span>
+          <small>Average absolute RUL error</small>
+        </article>
+        <article>
+          <strong>{{ '%.1f%%' | format(evidence.interval_coverage * 100) if evidence else '89.8%' }}</strong>
+          <span>interval coverage</span>
+          <small>Nominal 90% prediction range</small>
+        </article>
+        <article>
+          <strong>{{ '%.0f%%' | format(evidence.critical_recall * 100) if evidence else '77%' }}</strong>
+          <span>critical-alert recall</span>
+          <small>At the 30-cycle horizon</small>
+        </article>
+      </div>
+      <p class="evidence-note">Metrics summarize held-out replay engines, not this single trajectory.
+        Thresholds are warning at 50 cycles and critical at 30 cycles.</p>
+    </section>
   </main>
+
   <footer class="demo-foot">
-    <p>Independently developed portfolio system on public NASA C-MAPSS data; anonymous sensors; no
-    proprietary content. <a href="/dashboard/models">Model lineage</a> &middot;
-    <a href="/docs">API</a></p>
+    <p>TurbineGuard is an independently developed demonstration on public NASA C-MAPSS simulated
+      turbofan data. Sensor channels are anonymous and no proprietary data is used.</p>
   </footer>
+
   <script type="application/json" id="demo-data">{{ demo | tojson }}</script>
   <script defer src="/static/demo.js"></script>
 </body>

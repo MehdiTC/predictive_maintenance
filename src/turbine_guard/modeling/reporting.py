@@ -1,4 +1,4 @@
-"""Machine-readable and concise human-readable Loop 4 reports."""
+"""Machine-readable and concise human-readable model reports."""
 
 import csv
 from pathlib import Path
@@ -85,7 +85,7 @@ def write_human_report(
     base_sim = simulation["scenarios"][0]
     predictive = base_sim["predictive"]
     lines = [
-        "# Loop 4 Model Evaluation",
+        "# Model Evaluation",
         "",
         "All candidate selection used the validation role only. Calibration fitted only the "
         "conformal residual quantile; replay and official NASA test results did not affect "

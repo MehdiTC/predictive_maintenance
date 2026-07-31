@@ -1,4 +1,4 @@
-"""Operational feature and delayed-label assembly using the shared Loop 3 builder."""
+"""Operational feature and delayed-label assembly using the shared feature builder."""
 
 import uuid
 from dataclasses import dataclass

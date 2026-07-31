@@ -1,4 +1,4 @@
-"""Local Loop 4 artifact serialization, checksums, and idempotency manifest."""
+"""Local model artifact serialization, checksums, and idempotency manifest."""
 
 import hashlib
 import io
@@ -31,7 +31,7 @@ class ArtifactRecord(BaseModel):
 
 
 class TrainingManifest(BaseModel):
-    """Source-of-truth manifest for one complete Loop 4 artifact set."""
+    """Source-of-truth manifest for one complete modeling artifact set."""
 
     model_config = ConfigDict(frozen=True)
 

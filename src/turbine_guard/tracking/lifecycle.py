@@ -1,4 +1,4 @@
-"""Loop 9 candidate registry, safe alias transition, and rollback operations."""
+"""Candidate registry, safe alias transitions, and rollback operations."""
 
 import json
 import tempfile
@@ -58,7 +58,7 @@ def configured_mlflow(config: MlflowConfig) -> Iterator[MlflowClient]:
 
 
 def load_champion(config: MlflowConfig) -> ChampionRegistryState:
-    """Load the exact current champion and recover its Loop 4 fit configuration."""
+    """Load the exact current champion and recover its fit configuration."""
     with configured_mlflow(config) as client:
         version = client.get_model_version_by_alias(
             config.registered_model_name, config.champion_alias
@@ -71,7 +71,7 @@ def load_champion(config: MlflowConfig) -> ChampionRegistryState:
         python_model = model.unwrap_python_model()
         bundle = getattr(python_model, "_bundle", None)
         if not isinstance(bundle, ModelBundle):
-            raise TypeError("Champion pyfunc does not contain a verified Loop 4 bundle.")
+            raise TypeError("Champion pyfunc does not contain a verified model bundle.")
         run = client.get_run(version.run_id)
         return ChampionRegistryState(
             version=str(version.version),
@@ -85,7 +85,7 @@ def load_champion(config: MlflowConfig) -> ChampionRegistryState:
 
 
 def champion_baseline_metrics(state: ChampionRegistryState) -> dict[str, Any]:
-    """Map the Loop 5 source-run evidence into the delayed-monitoring metric shape."""
+    """Map MLflow source-run evidence into the delayed-monitoring metric shape."""
     metrics = state.run_metrics
     return {
         "regression": {
@@ -360,7 +360,7 @@ def _candidate_version(
         source=model_uri,
         run_id=run_id,
         tags=tags,
-        description="Loop 9 retraining candidate evaluated on a disjoint promotion holdout.",
+        description="Retraining candidate evaluated on a disjoint promotion holdout.",
     )
     return str(created.version)
 
@@ -372,7 +372,7 @@ def _ensure_registered_model(client: MlflowClient, config: MlflowConfig) -> None
         client.create_registered_model(
             config.registered_model_name,
             tags={"project": config.project_tag, "dataset_subset": "FD001"},
-            description="TurbineGuard Loop 9 lifecycle registry.",
+            description="TurbineGuard model registry.",
         )
 
 

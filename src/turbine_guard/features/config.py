@@ -1,4 +1,4 @@
-"""Typed configuration for Loop 3 labels, splits, and features.
+"""Typed configuration for labels, splits, and features.
 
 Configuration lives in frozen dataclasses (the same convention as
 :class:`turbine_guard.data.acquisition.AcquisitionConfig` and
@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 from turbine_guard.data.schema import OPERATING_SETTING_COLUMNS, SENSOR_COLUMNS
 
-# Canonical target and metadata column names produced by Loop 3.
+# Canonical target and metadata column names produced during feature generation.
 RUL_COLUMN = "rul"
 """Uncapped Remaining Useful Life target (cycles remaining until failure)."""
 

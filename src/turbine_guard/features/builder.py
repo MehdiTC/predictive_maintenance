@@ -207,7 +207,7 @@ class FeatureBuilder:
         Uses only observations inside the trailing window (cycle vs. value).
         A window with a single observation, or a degenerate fit, yields a
         deterministic slope of 0.0; windows below ``min_periods`` remain null.
-        Source values are finite (guaranteed by Loop 2 validation), so the
+        Source values are finite (guaranteed by data processing validation), so the
         observation count equals the cycle count.
         """
         x = ordered[CYCLE_COLUMN].astype("float64")

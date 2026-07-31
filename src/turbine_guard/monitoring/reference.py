@@ -32,7 +32,7 @@ class FeatureReference(BaseModel):
 
 
 class TrainingReference(BaseModel):
-    """Compact distribution record derived exclusively from Loop 3 training rows."""
+    """Compact distribution record derived exclusively from training feature rows."""
 
     model_config = ConfigDict(frozen=True)
 

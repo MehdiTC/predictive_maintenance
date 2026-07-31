@@ -1,7 +1,7 @@
 """Checksum-verified access to held-out replay trajectories.
 
-The replay data source is the validated Loop 2 trajectory Parquet restricted
-to the Loop 3 ``replay`` split. Every load re-verifies the provenance chain
+The replay data source is the validated processed trajectory Parquet restricted
+to the dedicated ``replay`` split. Every load re-verifies the provenance chain
 
     feature manifest -> split manifest -> processing report -> train Parquet
 
@@ -111,7 +111,8 @@ class ReplaySource:
         ):
             if not path.exists():
                 raise ReplaySourceError(
-                    f"Required replay input {path} is missing. Run the Loop 2/3 pipelines first."
+                    f"Required replay input {path} is missing. Run the processed-data and "
+                    "feature pipelines first."
                 )
         try:
             feature_manifest = load_feature_manifest(config.feature_manifest_path)
@@ -133,7 +134,7 @@ class ReplaySource:
                 "manifest; the validated layer may have been tampered with."
             )
         if not report.passed:
-            raise ReplaySourceError("The recorded Loop 2 processing report did not pass.")
+            raise ReplaySourceError("The recorded processing report did not pass.")
         record = next(
             (
                 output

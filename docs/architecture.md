@@ -4,9 +4,8 @@ TurbineGuard is an independently developed predictive-maintenance ML platform in
 power-generation use cases. It uses the public NASA C-MAPSS FD001 turbofan degradation dataset and
 contains no proprietary client data or implementation details.
 
-This document is the one-page architecture reference: what the components are, how data flows
-through them, and how a single online request is served. Deeper per-component contracts live in the
-other `docs/` files and the Architecture Decision Records under [docs/adr/](adr/).
+This document describes the major components, their data flow, and the lifecycle of an online
+prediction. Practical commands live in the [operations runbook](operations.md).
 
 ## Problem, data, and target
 
@@ -34,13 +33,13 @@ flowchart TB
 
     subgraph online["Online service (FastAPI process)"]
         api["/v1 API\nsensor ingestion + prediction"]
-        dash["Dashboard\nfleet, asset, drift, replay views"]
+        dash["Dashboard\nlive RUL forecast + decision view"]
         loader["Champion loader\nMLflow registry OR pinned bundle"]
         api --- dash
         api --> loader
     end
 
-    subgraph ops["Operational loops"]
+    subgraph ops["Operational feedback"]
         replay["Replay\nheld-out trajectories -> live stream"]
         monitor["Monitoring & lifecycle\nquality, drift, delayed metrics, gates"]
     end
@@ -98,14 +97,14 @@ Key structural properties encoded in this diagram:
    labels are backfilled for every historical prediction, and delayed evaluations are persisted.
 8. **Monitor & retrain.** Data-quality, all-feature drift, and delayed-performance reports run
    against the champion's training-only reference and yield an explicit `no_action` / `monitor` /
-   `retrain` / `blocked` decision. Retraining is leakage-safe and reuses the Loop 4 fit path;
+   `retrain` / `blocked` decision. Retraining is leakage-safe and reuses the modeling pipeline fit path;
    candidates must clear every blocking promotion gate (including MLflow reload equivalence) and,
    by default, human approval before the champion is replaced.
 
 ## Serving one online prediction
 
 This is the request path exercised on every `POST /v1/sensor-readings` — including every cycle the
-replay loop sends.
+replay client sends.
 
 ```mermaid
 sequenceDiagram
@@ -144,7 +143,7 @@ prediction endpoint reads.
 
 ## Deployment topologies
 
-| Concern | Local reference (Docker Compose) | Public demo (zero-cost, ADR 0011) |
+| Concern | Local reference (Docker Compose) | Public demo (pinned bundle) |
 | --- | --- | --- |
 | API | Container in shared image | One free Render web service |
 | Operational DB | PostgreSQL 17 container | External Neon free-tier PostgreSQL |
@@ -153,14 +152,13 @@ prediction endpoint reads.
 | Retraining/promotion | Demonstrable via lifecycle CLI | Read-only snapshot; not available |
 | Migrations | One-shot `migrate` service | Alembic at container start |
 
-Both topologies run the identical application image and code; only the champion source and the
-presence of the MLflow/retraining plane differ. See
-[docs/dashboard_deployment.md](dashboard_deployment.md) and
-[docs/containers.md](containers.md) for the full contracts.
+Both topologies run the same application image and code; only the champion source and the presence
+of the MLflow/retraining plane differ. Setup and verification commands are in the
+[operations runbook](operations.md).
 
 ## Deliberate non-goals
 
-Kafka, Kubernetes, Spark, a feature store, and a separate frontend framework were considered and
-rejected as unnecessary for a single-model, portfolio-scale system; the reasoning and the path to
-add them under real load is in [docs/scaling.md](scaling.md). The result is meant to demonstrate
-architecture judgment rather than infrastructure accumulation.
+Kafka, Kubernetes, Spark, a feature store, and a separate frontend framework are intentionally out
+of scope for this single-model reference system. The current boundaries—idempotent ingestion,
+stateless serving, a shared feature builder, and registry aliases—leave clear seams for those
+components if scale or organizational requirements justify them.

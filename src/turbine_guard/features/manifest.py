@@ -7,7 +7,7 @@ that a future training run can identify precisely which feature version and
 split it used and detect any tampering.
 
 Both are pydantic frozen models written atomically as pretty JSON, mirroring
-the Loop 1/2 manifest and report convention.
+the acquisition and processing manifest and report convention.
 """
 
 import hashlib
@@ -34,7 +34,7 @@ class SplitManifest(BaseModel):
     seed: int
     strategy: str
     source_report_sha256: str
-    """Checksum of the Loop 2 processing report the split was derived from."""
+    """Checksum of the processing report the split was derived from."""
 
     partitions: dict[str, tuple[int, ...]]
     asset_counts: dict[str, int]
@@ -84,7 +84,7 @@ class FeatureManifest(BaseModel):
     seed: int
 
     source_report_sha256: str
-    """Links the features to the exact validated Loop 2 inputs."""
+    """Links the features to the exact validated processing inputs."""
 
     split_manifest_sha256: str
     """Links the features to the exact split assignment used."""
@@ -93,7 +93,7 @@ class FeatureManifest(BaseModel):
     feature_config: FeatureConfigRecord
     rul_cap: int | None
     imputation: str | None
-    """Imputation policy; ``None`` means imputation is deferred to Loop 4."""
+    """Imputation policy; ``None`` means imputation is deferred to model training."""
 
     identifier_columns: tuple[str, ...]
     target_columns: tuple[str, ...]
@@ -101,7 +101,7 @@ class FeatureManifest(BaseModel):
     feature_columns: tuple[str, ...]
 
     inputs: tuple[FileRecord, ...]
-    """Loop 2 outputs consumed (train/test/rul Parquet + report), by checksum."""
+    """Processed outputs consumed (train/test/RUL Parquet + report), by checksum."""
 
     outputs: tuple[FeatureOutputRecord, ...]
     row_counts_by_split: dict[str, int]

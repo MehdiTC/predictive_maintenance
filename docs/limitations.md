@@ -1,8 +1,7 @@
 # Limitations and Known Risks
 
-TurbineGuard is a portfolio-grade demonstration of predictive-maintenance ML systems engineering. It
-is deliberately honest about what it does and does not prove. This page consolidates the limitations
-that are otherwise spread across the per-loop docs.
+TurbineGuard is a reference implementation of predictive-maintenance ML systems engineering. This
+page states what it does and does not demonstrate.
 
 ## Data and problem framing
 
@@ -52,7 +51,7 @@ that are otherwise spread across the per-loop docs.
 * **MLflow registry is single-host SQLite.** In both local host and Compose modes the MLflow
   metadata store is SQLite; it is persistent and service-owned under Compose but is not a
   high-availability registry. The serving-model cache refresh is per API process.
-* **Public demo is intentionally reduced.** The zero-cost public deployment (ADR 0011) serves an
+* **Public demo is intentionally reduced.** The public deployment serves an
   immutable, checksum-pinned bundle instead of a live registry, so promotion and retraining are not
   available publicly — only in the local Compose stack, and the dashboard says so. Free-tier idle
   sleep/cold-start, an ephemeral compute filesystem (the bundle is re-restored on start), and

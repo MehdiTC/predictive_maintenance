@@ -1,4 +1,4 @@
-"""Optional local FD001 Loop 4 input-contract integration test.
+"""Optional local FD001 model-input-contract integration test.
 
 The expensive real candidate training remains an explicit CLI validation step;
 the default suite only verifies the real role/schema contract when data exists.
@@ -16,7 +16,7 @@ FEATURE_MANIFEST = REPO_DATA_DIR / "features" / "cmapss" / "FD001" / "feature_ma
 
 pytestmark = [
     pytest.mark.real_data,
-    pytest.mark.skipif(not FEATURE_MANIFEST.exists(), reason="FD001 Loop 3 features not available"),
+    pytest.mark.skipif(not FEATURE_MANIFEST.exists(), reason="FD001 features not available"),
 ]
 
 

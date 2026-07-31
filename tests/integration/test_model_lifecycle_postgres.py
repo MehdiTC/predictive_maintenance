@@ -1,4 +1,4 @@
-"""Real PostgreSQL persistence and partial-phase recovery for Loop 9."""
+"""Real PostgreSQL persistence and partial-phase recovery for model lifecycle."""
 
 import uuid
 from datetime import UTC, datetime
@@ -78,7 +78,7 @@ def test_lifecycle_reports_assignments_events_recovery_and_idempotency(
     )
     assert DataQualityReportRepository(db_session).for_model("model", "1") == [report]
 
-    asset = AssetRepository(db_session).create(NewAsset(external_id=f"loop9-{uuid.uuid4()}"))
+    asset = AssetRepository(db_session).create(NewAsset(external_id=f"lifecycle-{uuid.uuid4()}"))
     assignments = LifecycleAssetAssignmentRepository(db_session)
     assignment = assignments.create(
         NewLifecycleAssetAssignment(

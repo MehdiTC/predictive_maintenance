@@ -1,4 +1,4 @@
-"""MLflow pyfunc packaging for the existing Loop 4 champion bundle."""
+"""MLflow pyfunc packaging for the existing champion bundle."""
 
 from importlib.metadata import version
 from pathlib import Path
@@ -52,7 +52,7 @@ class ChampionPyFuncModel(PythonModel):
         if self._bundle is None:
             raise ValueError("Champion model has not been loaded by MLflow.")
         if tuple(model_input.columns) != self.feature_columns:
-            raise ValueError("Prediction columns do not match the ordered Loop 3 feature manifest.")
+            raise ValueError("Prediction columns do not match the ordered feature manifest.")
         return self._bundle.predict_rich(model_input)
 
 
@@ -82,7 +82,7 @@ def log_bundle_model(
     input_example: pd.DataFrame,
     metadata: dict[str, Any],
 ) -> ModelInfo:
-    """Package a verified Loop 4 bundle using the one established Loop 5 pyfunc contract."""
+    """Package a verified model bundle with the established MLflow pyfunc contract."""
     source_root = _packaging_source_root()
     requirements = [
         f"mlflow=={version('mlflow')}",

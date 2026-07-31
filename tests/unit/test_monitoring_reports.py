@@ -1,4 +1,4 @@
-"""Unit coverage for Loop 9 quality, drift, performance, and trigger decisions."""
+"""Unit coverage for quality, drift, performance, and retraining decisions."""
 
 from datetime import UTC, datetime
 from pathlib import Path

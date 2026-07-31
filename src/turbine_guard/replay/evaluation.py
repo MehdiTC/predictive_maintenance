@@ -1,10 +1,10 @@
 """Delayed evaluation of stored online predictions against realized outcomes.
 
-All metric formulas are the Loop 4 implementations (`modeling.metrics`,
+All metric formulas use the shared implementations (`modeling.metrics`,
 `modeling.alerts`, `modeling.conformal`); this module only assembles frames
 from persisted predictions and realized labels and groups them by the model
 identity actually stored with each prediction. Replay evaluation is evidence
-about online behavior — it never feeds back into Loop 4 champion selection.
+about online behavior—it never feeds back into champion selection.
 """
 
 from collections.abc import Iterable, Sequence
@@ -43,7 +43,7 @@ _FRAME_COLUMNS = (
 
 @dataclass(frozen=True)
 class DelayedEvaluationConfig:
-    """Alert policy used when scoring realized outcomes; Loop 4 defaults."""
+    """Alert policy used when scoring realized outcomes; matches training defaults."""
 
     alert: AlertConfig = field(default_factory=AlertConfig)
 
@@ -101,7 +101,7 @@ def group_by_model(frame: pd.DataFrame) -> dict[tuple[str, str], pd.DataFrame]:
 
 
 def evaluate_group(frame: pd.DataFrame, config: DelayedEvaluationConfig) -> dict[str, Any]:
-    """Score one model version's labeled predictions with the Loop 4 formulas."""
+    """Score one model version's labeled predictions with the shared metric formulas."""
     regression = regression_metrics(frame["y_true"], frame["y_pred"])
     critical = alert_metrics(
         frame,

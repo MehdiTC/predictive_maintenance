@@ -1,7 +1,7 @@
-"""Replay-side client for the real Loop 7 sensor-ingestion contract.
+"""Replay-side client for the real online sensor-ingestion contract.
 
 The client speaks plain HTTP against ``POST /v1/sensor-readings`` using the
-Loop 7 request/response schemas. Payloads are deterministic per run and cycle
+online inference request/response schemas. Payloads are deterministic per run and cycle
 (including the simulated observation timestamp and ingestion ID), so a resend
 after an uncertain outcome is byte-identical and the API's exact-retry
 idempotency doubles as the reconciliation mechanism. Tests may inject
@@ -44,7 +44,7 @@ def build_reading_request(
     replay_started_at: datetime,
     simulated_cycle_duration_seconds: float,
 ) -> SensorReadingRequest:
-    """Build the exact Loop 7 payload for one cycle, and only that cycle.
+    """Build the exact online inference payload for one cycle, and only that cycle.
 
     ``observed_at`` is simulated from the replay epoch and cycle index;
     ``ingestion_id`` is deterministic per run and cycle so retries carry the

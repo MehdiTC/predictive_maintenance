@@ -264,7 +264,7 @@ class ModelEvaluation(CreatedAtMixin, Base):
 
 
 class DriftReport(CreatedAtMixin, Base):
-    """Persisted drift summary produced by future Loop 9 calculations."""
+    """Persisted drift summary produced by monitoring calculations."""
 
     __tablename__ = "drift_reports"
     __table_args__ = (

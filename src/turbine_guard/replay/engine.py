@@ -1,7 +1,7 @@
 """Replay orchestration: modes, exclusive advancement, and delayed feedback.
 
 One advance is a three-part protocol — claim the run's lease in a short
-transaction, send exactly one cycle through the real Loop 7 HTTP contract,
+transaction, send exactly one cycle through the real online inference HTTP contract,
 then confirm progress with the claim token. Because payloads are
 deterministic and ingestion is exactly idempotent, every failure mode
 (timeout, crash before confirm, duplicate retry) reconciles by resending the

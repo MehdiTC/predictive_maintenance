@@ -60,7 +60,7 @@ class BundleServingModel:
 
     def predict(self, model_input: pd.DataFrame) -> pd.DataFrame:
         if tuple(model_input.columns) != self._bundle.feature_columns:
-            raise ValueError("Prediction columns do not match the ordered Loop 3 feature manifest.")
+            raise ValueError("Prediction columns do not match the ordered feature manifest.")
         return self._bundle.predict_rich(model_input)
 
 

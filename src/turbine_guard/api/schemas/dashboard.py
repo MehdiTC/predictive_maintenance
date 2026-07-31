@@ -1,4 +1,4 @@
-"""Typed read and constrained-control contracts for the Loop 11 dashboard."""
+"""Typed read and constrained-control contracts for the dashboard."""
 
 import uuid
 from datetime import datetime
@@ -242,6 +242,15 @@ class DemoPredictionPoint(ApiModel):
     risk_level: str
 
 
+class DemoEvidenceResponse(ApiModel):
+    """Stable held-out evaluation evidence for the deployed demo model."""
+
+    evaluation_set: str
+    mae_cycles: float
+    interval_coverage: float
+    critical_recall: float
+
+
 class DemoStateResponse(ApiModel):
     """Everything the guided landing-page demo needs in one bounded payload."""
 
@@ -253,6 +262,9 @@ class DemoStateResponse(ApiModel):
     max_attempts: int
     max_cycles_per_request: int
     cooldown_seconds: float
+    warning_horizon: int
+    critical_horizon: int
+    evidence: DemoEvidenceResponse
 
 
 class ReplayActionRequest(ApiModel):

@@ -47,10 +47,10 @@ process: ## Validate acquired FD001 raw files and write Parquet + report
 features: ## Build RUL labels, asset-level splits, and features (requires make process)
 	$(UV) run python scripts/build_features.py
 
-train: ## Train and evaluate Loop 4 RUL models (requires make features)
+train: ## Train and evaluate RUL model candidates (requires make features)
 	$(UV) run python scripts/train_models.py
 
-train-tracked: ## Train/verify Loop 4 and track/register with MLflow
+train-tracked: ## Train candidates and track/register them with MLflow
 	$(UV) run python scripts/train_models.py --track-with-mlflow
 
 mlflow-ui: ## Launch the local SQLite-backed MLflow UI
@@ -80,7 +80,7 @@ db-downgrade: ## Downgrade one revision (development only)
 db-test: ## Run guarded PostgreSQL integration tests
 	$(UV) run pytest -m postgres tests/integration/test_postgres_operational.py
 
-monitor: ## Run one Loop 9 production monitoring window
+monitor: ## Run one production monitoring window
 	$(UV) run python scripts/model_lifecycle.py monitor
 
 lifecycle-status: ## Inspect monitoring/retraining/promotion pipeline runs

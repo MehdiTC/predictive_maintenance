@@ -1,4 +1,4 @@
-"""Public replay policy tests above the already-tested Loop 8 engine."""
+"""Public replay-policy tests above the replay engine."""
 
 import uuid
 from dataclasses import replace

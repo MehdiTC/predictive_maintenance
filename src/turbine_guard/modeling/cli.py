@@ -1,4 +1,4 @@
-"""Command-line interface for the deterministic Loop 4 training pipeline."""
+"""Command-line interface for deterministic model training."""
 
 import argparse
 import logging
@@ -22,7 +22,7 @@ def build_parser(default_data_dir: Path) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="train_models",
         description=(
-            "Verify Loop 3 artifacts, train bounded RUL candidates, select on validation, "
+            "Verify feature artifacts, train bounded RUL candidates, select on validation, "
             "calibrate conformal intervals, and evaluate replay/official test data."
         ),
     )
@@ -41,7 +41,7 @@ def build_parser(default_data_dir: Path) -> argparse.ArgumentParser:
     parser.add_argument(
         "--track-with-mlflow",
         action="store_true",
-        help="Track the verified Loop 4 execution and optionally register its champion.",
+        help="Track the verified training execution and optionally register its champion.",
     )
     parser.add_argument(
         "--force-mlflow-run",
@@ -78,7 +78,7 @@ def _config_from_args(args: argparse.Namespace) -> TrainingConfig:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run Loop 4 training and return a process exit code."""
+    """Run model training and return a process exit code."""
     settings = get_settings()
     configure_logging(settings.log_level)
     args = build_parser(settings.data_dir).parse_args(argv)

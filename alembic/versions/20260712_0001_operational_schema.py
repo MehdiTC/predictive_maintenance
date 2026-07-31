@@ -1,4 +1,4 @@
-"""Create the Loop 6 PostgreSQL operational schema.
+"""Create the initial PostgreSQL operational schema.
 
 Revision ID: 20260712_0001
 Revises: None

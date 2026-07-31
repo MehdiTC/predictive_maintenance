@@ -1,1 +1,1 @@
-"""Loop 9 monitoring, retraining, evaluation, and promotion lifecycle."""
+"""Monitoring, retraining, evaluation, and model promotion."""

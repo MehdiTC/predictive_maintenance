@@ -1,8 +1,8 @@
-"""Loop 3: RUL labels, asset-level splits, and leakage-safe features.
+"""RUL labels, asset-level splits, and leakage-safe features.
 
-This package turns the validated Loop 2 Parquet trajectories into reproducible,
+This package turns the validated Parquet trajectories into reproducible,
 model-ready feature tables. It is deliberately model-free: no training,
-scaling, or feature selection happens here (those belong to Loop 4).
+scaling, or feature selection happens here; those belong to model training.
 
 Public surface:
 
