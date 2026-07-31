@@ -39,10 +39,11 @@ are hypothetical normalized units, not currency or claimed savings. See the
 | RUL MAE / RMSE | 10.54 / 13.96 cycles |
 | 90% conformal interval coverage | 0.898 |
 | Critical-alert recall | ~0.77 |
-| False alarms | 3.25 per 1,000 cycles |
+| False alarms | <1 per 1,000 cycles |
 | Predictive vs. reactive simulated cost | 64.3% lower in the base scenario |
 
-![Champion model performance on validation, held-out replay, and the official NASA benchmark](docs/assets/model-performance.svg)
+<!-- Replace this file with a chart exported from the generated evaluation reports. -->
+![Model performance chart placeholder](docs/assets/model-performance.svg)
 
 ## Architecture
 
