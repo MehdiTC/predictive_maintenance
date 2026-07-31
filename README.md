@@ -12,16 +12,20 @@ with the public NASA C-MAPSS FD001 dataset and contains no proprietary data.
 
 ![Completed replay with failure, warning lead time, and model evidence](docs/assets/live-demo2.png)
 
-## What it demonstrates
+## How it works
 
-- Reproducible acquisition, validation, feature generation, and model training
-- Asset-level train, validation, calibration, and replay splits to prevent leakage
-- One feature implementation shared by offline training and online inference
-- Explicit model selection, conformal prediction intervals, and MLflow model registration
-- FastAPI inference with idempotent ingestion and PostgreSQL persistence
-- Held-out trajectory replay with delayed outcomes and online evaluation
-- Data-quality, drift, performance, retraining, and guarded promotion workflows
-- A containerized local stack and a reduced, immutable public-demo deployment
+TurbineGuard follows an offline-to-online predictive-maintenance workflow:
+
+- **Prepare data:** Download and validate C-MAPSS FD001, then split complete engines into training,
+  validation, calibration, and held-out replay sets.
+- **Train and register:** Build leakage-safe time-series features, evaluate multiple model families,
+  calibrate 90% prediction intervals, and register the selected champion in MLflow.
+- **Serve predictions:** Replay an unseen engine one cycle at a time through FastAPI. The service
+  uses the same feature builder as training and stores versioned RUL predictions in PostgreSQL.
+- **Evaluate outcomes:** Reveal failure only when a replay finishes, backfill realized RUL labels,
+  and measure prediction error, interval coverage, alert quality, and lead time.
+- **Monitor and promote:** Check data quality, drift, and delayed performance before retraining or
+  promoting a candidate. The public demo serves an immutable bundle exported from the registry.
 
 ## Results
 
