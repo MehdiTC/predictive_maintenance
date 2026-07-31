@@ -10,30 +10,35 @@
   let series = (demo && demo.series) || [];
   let shown = series.length;
   let mode = "idle";
-  let fetching = false;
-  let cooldownUntil = 0;
+  let stateRequest = null;
 
+  const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
   const formatCycles = (value) => value == null ? "—" : String(Math.round(Number(value)));
   const run = () => (demo && demo.run) || null;
   const finished = () => run() && run().status === "completed";
   const active = () => run() && !["completed", "failed"].includes(run().status);
   const warningHorizon = () => (demo && demo.warning_horizon) || 50;
   const criticalHorizon = () => (demo && demo.critical_horizon) || 30;
+  const cooldownMs = () => ((((demo && demo.cooldown_seconds) || 1) * 1000) + 200);
 
   async function fetchState() {
-    if (fetching) return;
-    fetching = true;
+    if (stateRequest) return stateRequest;
+    const request = (async () => {
+      try {
+        const response = await fetch("/v1/demo", {headers: {Accept: "application/json"}});
+        if (response.ok) {
+          demo = await response.json();
+          const fresh = demo.series || [];
+          if (fresh.length < shown) shown = fresh.length;
+          series = fresh;
+        }
+      } catch { /* A later poll retries transient network failures. */ }
+    })();
+    stateRequest = request;
     try {
-      const response = await fetch("/v1/demo", {headers: {Accept: "application/json"}});
-      if (response.ok) {
-        demo = await response.json();
-        const fresh = demo.series || [];
-        if (fresh.length < shown) shown = fresh.length;
-        series = fresh;
-      }
-    } catch { /* A later poll retries transient network failures. */
+      return await request;
     } finally {
-      fetching = false;
+      if (stateRequest === request) stateRequest = null;
     }
   }
 
@@ -223,19 +228,13 @@
     if (!demo || demo.enabled === false) {
       buttonNode.disabled = true;
       buttonNode.textContent = "Live replay unavailable";
-    } else if (mode === "updating" || backlog > 0) {
+    } else if (mode === "running" || backlog > 0) {
       buttonNode.disabled = true;
-      buttonNode.textContent = "Updating forecast…";
-    } else if (Date.now() < cooldownUntil) {
-      buttonNode.disabled = true;
-      buttonNode.textContent = "Ready in a moment…";
+      buttonNode.textContent = "Running simulation…";
     } else if (finished()) {
-      buttonNode.textContent = "Replay from the start";
-    } else if (active()) {
-      const batch = demo.max_cycles_per_request || 10;
-      buttonNode.textContent = `Advance up to ${batch} cycles`;
+      buttonNode.textContent = "Restart simulation";
     } else {
-      buttonNode.textContent = "Start live replay";
+      buttonNode.textContent = "Start simulation";
     }
   }
 
@@ -286,11 +285,11 @@
     setTimeout(animationTick, delay);
   }
 
-  async function advanceReplay() {
-    if (mode !== "idle" || Date.now() < cooldownUntil) return;
-    mode = "updating";
+  async function runSimulation() {
+    if (mode !== "idle") return;
+    mode = "running";
     updateButton();
-    message("Sending the next sensor cycles through the model…");
+    message("Streaming sensor cycles through the model…");
     try {
       let replay = run();
       if (!replay || replay.status === "completed" || replay.status === "failed") {
@@ -306,30 +305,41 @@
         await fetchState();
         replay = run();
       }
-      if (replay && !["completed", "failed"].includes(replay.status)) {
-        await act({action: "accelerate", run_id: replay.run_id});
+
+      while (replay && !["completed", "failed"].includes(replay.status)) {
+        try {
+          await act({action: "accelerate", run_id: replay.run_id});
+        } catch (error) {
+          if (!error.transient) throw error;
+          await sleep(cooldownMs());
+        }
         await fetchState();
+        replay = run();
+        if (replay && !["completed", "failed"].includes(replay.status)) {
+          await sleep(cooldownMs());
+        }
       }
-      cooldownUntil = Date.now() + (((demo && demo.cooldown_seconds) || 1) * 1000);
-      setTimeout(updateButton, Math.max(0, cooldownUntil - Date.now()) + 20);
+
+      while (shown < series.length) await sleep(100);
+      message(finished()
+        ? "Simulation complete. Actual remaining life is now visible."
+        : "The simulation stopped before completion. Start it to try again.");
     } catch (error) {
-      message(error.transient
-        ? "Another replay update is finishing. Try again in a moment."
-        : (error.message || "The live replay hit a snag. Try again in a moment."));
+      message(error.message || "The simulation hit a snag. Try again in a moment.");
     } finally {
       mode = "idle";
       paint();
     }
   }
 
-  buttonNode.addEventListener("click", advanceReplay);
+  buttonNode.addEventListener("click", runSimulation);
   animationTick();
 
   setInterval(async () => {
-    if (!active() || mode !== "idle") return;
+    if (!active()) return;
     await fetchState();
     paint();
-  }, 3000);
+  }, 1500);
 
   if (!demo) {
     message("Connecting to the live replay…");
@@ -338,11 +348,11 @@
       message(demo ? "Start the replay when you're ready." : "The live replay is unavailable.");
     });
   } else if (!series.length) {
-    message("Start the replay to reveal the engine sequence in bounded steps.");
+    message("Start the simulation to stream the full engine sequence.");
   } else if (finished()) {
     message("Replay complete. The actual remaining life is now visible on the chart.");
   } else {
-    message("Advance the replay to process the next sensor cycles.");
+    message("Start the simulation to continue this engine sequence.");
   }
   paint();
 })();

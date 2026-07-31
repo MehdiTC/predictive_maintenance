@@ -442,6 +442,7 @@ def test_demo_landing_page_and_json_state() -> None:
     assert "simulated turbofan data" in page.text
     assert 'id="demo-run"' in page.text
     assert 'id="demo-chart"' in page.text
+    assert "/static/demo.js?v=4" in page.text
     assert "NASA C-MAPSS" in page.text
     assert state.status_code == 200
     body = state.json()
